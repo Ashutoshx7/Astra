@@ -1,6 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-// Tab type
+// Type declaration for the preload bridge
+declare global {
+  interface Window {
+    astra: {
+      navigate: (url: string) => void;
+      goBack: () => void;
+      goForward: () => void;
+      refresh: () => void;
+      newTab: (url?: string) => void;
+      closeTab: (tabId: string) => void;
+      switchTab: (tabId: string) => void;
+      onTabUpdate: (callback: (data: any) => void) => void;
+      onUrlChanged: (callback: (url: string) => void) => void;
+    };
+  }
+}
+
 interface Tab {
   id: string;
   title: string;
@@ -9,21 +25,33 @@ interface Tab {
 }
 
 const App: React.FC = () => {
-  // State: list of tabs and which one is active
   const [tabs, setTabs] = useState<Tab[]>([
     { id: '1', title: 'DuckDuckGo', url: 'https://duckduckgo.com', favicon: '🦆' },
   ]);
   const [activeTabId, setActiveTabId] = useState('1');
   const [urlInput, setUrlInput] = useState('https://duckduckgo.com');
 
-  // Handle URL submission
+  // Listen for updates from the main process
+  useEffect(() => {
+    window.astra.onTabUpdate((data) => {
+      setTabs(prev => prev.map(tab =>
+        tab.id === activeTabId
+          ? { ...tab, title: data.title, url: data.url }
+          : tab
+      ));
+    });
+
+    window.astra.onUrlChanged((url) => {
+      setUrlInput(url);
+    });
+  }, [activeTabId]);
+
+  // Navigate when user submits URL
   const handleNavigate = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Tell main process to navigate the webView
-    console.log('Navigate to:', urlInput);
+    window.astra.navigate(urlInput);
   };
 
-  // Add a new tab
   const handleNewTab = () => {
     const newTab: Tab = {
       id: Date.now().toString(),
@@ -36,11 +64,9 @@ const App: React.FC = () => {
     setUrlInput('');
   };
 
-  // Close a tab
   const handleCloseTab = (tabId: string) => {
     const filtered = tabs.filter(t => t.id !== tabId);
     if (filtered.length === 0) {
-      // Don't close last tab, open a new one instead
       handleNewTab();
       return;
     }
@@ -55,9 +81,9 @@ const App: React.FC = () => {
       {/* URL Bar */}
       <div className="url-bar">
         <div className="nav-buttons">
-          <button className="nav-btn" title="Back">←</button>
-          <button className="nav-btn" title="Forward">→</button>
-          <button className="nav-btn" title="Refresh">↻</button>
+          <button className="nav-btn" title="Back" onClick={() => window.astra.goBack()}>←</button>
+          <button className="nav-btn" title="Forward" onClick={() => window.astra.goForward()}>→</button>
+          <button className="nav-btn" title="Refresh" onClick={() => window.astra.refresh()}>↻</button>
         </div>
         <form onSubmit={handleNavigate} className="url-form">
           <input
