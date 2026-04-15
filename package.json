@@ -26,8 +26,11 @@
     "@electron-forge/plugin-vite": "^7.11.1",
     "@electron/fuses": "^1.8.0",
     "@types/electron-squirrel-startup": "^1.0.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "electron": "41.2.0",
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.32.0",
@@ -38,6 +41,8 @@
     "@ghostery/adblocker-electron": "^2.14.1",
     "better-sqlite3": "^12.9.0",
     "cross-fetch": "^4.1.0",
-    "electron-squirrel-startup": "^1.0.1"
+    "electron-squirrel-startup": "^1.0.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   }
 }
