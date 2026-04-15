@@ -83,12 +83,12 @@ const createWindow = () => {
   // Back / Forward / Refresh
   ipcMain.on('go-back', () => {
     console.log('[Astra] Go back');
-    if (webView.webContents.canGoBack()) webView.webContents.goBack();
+    if (webView.webContents.navigationHistory.canGoBack()) webView.webContents.navigationHistory.goBack();
   });
 
   ipcMain.on('go-forward', () => {
     console.log('[Astra] Go forward');
-    if (webView.webContents.canGoForward()) webView.webContents.goForward();
+    if (webView.webContents.navigationHistory.canGoForward()) webView.webContents.navigationHistory.goForward();
   });
 
   ipcMain.on('refresh', () => {
