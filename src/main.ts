@@ -1,4 +1,4 @@
-import { app, BaseWindow, WebContentsView, ipcMain, session } from 'electron';
+import { app, BaseWindow, WebContentsView, ipcMain, session, Menu } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { ElectronBlocker } from '@ghostery/adblocker-electron';
@@ -24,6 +24,7 @@ interface ManagedTab {
   title: string;
   url: string;
   favicon: string;
+  isLoading: boolean;
 }
 
 let tabs: ManagedTab[] = [];
@@ -83,12 +84,94 @@ function createTab(url = 'https://duckduckgo.com'): ManagedTab {
     }
   });
 
+  // ===== FEATURE 1: Open links in new tab (middle-click / Ctrl+click / target="_blank") =====
+  view.webContents.setWindowOpenHandler(({ url: linkUrl }) => {
+    const newTab = createTab(linkUrl);
+    switchToTab(newTab.id);
+    return { action: 'deny' }; // Don't open a new Electron window
+  });
+
+  // ===== FEATURE 2: Loading indicator =====
+  view.webContents.on('did-start-loading', () => {
+    const tab = tabs.find(t => t.id === id);
+    if (tab) {
+      tab.isLoading = true;
+      sendTabsToSidebar();
+    }
+  });
+
+  view.webContents.on('did-stop-loading', () => {
+    const tab = tabs.find(t => t.id === id);
+    if (tab) {
+      tab.isLoading = false;
+      sendTabsToSidebar();
+    }
+  });
+
+  // ===== FEATURE 4: Right-click context menu =====
+  view.webContents.on('context-menu', (_event, params) => {
+    const menuItems: Electron.MenuItemConstructorOptions[] = [];
+
+    // If right-clicked on a link
+    if (params.linkURL) {
+      menuItems.push(
+        {
+          label: 'Open Link in New Tab',
+          click: () => {
+            const newTab = createTab(params.linkURL);
+            switchToTab(newTab.id);
+          },
+        },
+        {
+          label: 'Copy Link Address',
+          click: () => {
+            require('electron').clipboard.writeText(params.linkURL);
+          },
+        },
+        { type: 'separator' },
+      );
+    }
+
+    // If there's selected text
+    if (params.selectionText) {
+      menuItems.push(
+        {
+          label: 'Copy',
+          role: 'copy',
+        },
+        { type: 'separator' },
+      );
+    }
+
+    // Always show these
+    menuItems.push(
+      {
+        label: 'Back',
+        enabled: view.webContents.navigationHistory.canGoBack(),
+        click: () => view.webContents.navigationHistory.goBack(),
+      },
+      {
+        label: 'Forward',
+        enabled: view.webContents.navigationHistory.canGoForward(),
+        click: () => view.webContents.navigationHistory.goForward(),
+      },
+      {
+        label: 'Reload',
+        click: () => view.webContents.reload(),
+      },
+    );
+
+    const menu = Menu.buildFromTemplate(menuItems);
+    menu.popup();
+  });
+
   const tab: ManagedTab = {
     id,
     view,
     title: 'New Tab',
     url,
     favicon: '🌐',
+    isLoading: true,
   };
 
   tabs.push(tab);
@@ -172,6 +255,7 @@ function sendTabsToSidebar() {
     title: t.title,
     url: t.url,
     favicon: t.favicon,
+    isLoading: t.isLoading,
   }));
   sidebarView.webContents.send('tabs-updated', {
     tabs: tabData,

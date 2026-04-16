@@ -191,3 +191,36 @@ button, input, .tab, .tab-list, .sidebar-footer {
   color: #a5b4fc;
   background: rgba(99, 102, 241, 0.06);
 }
+
+/* === LOADING BAR === */
+.loading-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.loading-bar-progress {
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(90deg, #6366f1, #818cf8, #6366f1);
+  border-radius: 3px;
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/* === LOADING SPINNER === */
+.spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+  font-size: 14px;
+  color: #818cf8;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

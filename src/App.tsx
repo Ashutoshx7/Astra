@@ -23,6 +23,7 @@ interface Tab {
   title: string;
   url: string;
   favicon: string;
+  isLoading: boolean;
 }
 
 const App: React.FC = () => {
@@ -78,6 +79,13 @@ const App: React.FC = () => {
         </form>
       </div>
 
+      {/* Loading Bar */}
+      {tabs.find(t => t.id === activeTabId)?.isLoading && (
+        <div className="loading-bar">
+          <div className="loading-bar-progress" />
+        </div>
+      )}
+
       {/* Tab List */}
       <div className="tab-list">
         {tabs.map(tab => (
@@ -86,7 +94,9 @@ const App: React.FC = () => {
             className={`tab ${tab.id === activeTabId ? 'active' : ''}`}
             onClick={() => window.astra.switchTab(tab.id)}
           >
-            <span className="tab-favicon">{tab.favicon}</span>
+            <span className="tab-favicon">
+              {tab.isLoading ? <span className="spinner">⟳</span> : tab.favicon}
+            </span>
             <span className="tab-title">{tab.title}</span>
             <button
               className="tab-close"
