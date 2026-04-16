@@ -3,6 +3,7 @@ import { ManagedTab, TabData, SessionTab, CONFIG, IPC } from '../types';
 import { AppDatabase } from '../database/Database';
 import { DownloadManager } from './DownloadManager';
 import { getNewTabPageUrl } from '../pages/newtab';
+import type { SpaceManager } from './SpaceManager';
 
 /**
  * TabManager — owns the lifecycle of all browser tabs.
@@ -27,6 +28,7 @@ export class TabManager {
   private sendPending = false;
   private sendTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly SEND_THROTTLE_MS = 100;
+  private spaceManager: SpaceManager | null = null;
 
   constructor(
     private readonly mainWindow: BaseWindow,
@@ -45,7 +47,11 @@ export class TabManager {
     this.onViewCreated = cb;
   }
 
-  createTab(url?: string, isPinned = false): ManagedTab {
+  setSpaceManager(sm: SpaceManager): void {
+    this.spaceManager = sm;
+  }
+
+  createTab(url?: string, isPinned = false, spaceId?: string): ManagedTab {
     const id = this.nextId();
     const view = new WebContentsView();
 
@@ -74,7 +80,9 @@ export class TabManager {
       isLoading: true,
       isSecure: false,
       isPinned,
+      isHibernated: false,
       zoomLevel: 1.0,
+      spaceId: spaceId || this.spaceManager?.getActiveSpaceId() || '',
     };
 
     // Insert pinned tabs at the start
@@ -98,6 +106,12 @@ export class TabManager {
     if (!tab) return;
 
     this.activeTabId = tabId;
+
+    // Wake hibernated tab on switch
+    if (tab.isHibernated) {
+      this.wakeTab(tab);
+    }
+
     this.layoutViews();
     this.sidebarView.webContents.send(IPC.URL_CHANGED, tab.url);
     this.sidebarView.webContents.send(IPC.BOOKMARK_STATUS, this.database.isBookmarked(tab.url));
@@ -269,6 +283,7 @@ export class TabManager {
       .filter(t => !t.url.startsWith('data:') && !t.url.startsWith('astra://'))
       .map((t, i) => ({
         url: t.url, title: t.title, isPinned: t.isPinned, position: i,
+        spaceId: t.spaceId,
       }));
     this.database.saveSession(sessionTabs);
     console.log(`[Astra] 💾 Session saved: ${sessionTabs.length} tabs`);
@@ -279,7 +294,7 @@ export class TabManager {
     if (sessionTabs.length === 0) return false;
 
     for (const st of sessionTabs) {
-      this.createTab(st.url, st.isPinned);
+      this.createTab(st.url, st.isPinned, st.spaceId || undefined);
     }
 
     if (this.tabs.length > 0) this.switchToTab(this.tabs[0].id);
@@ -295,6 +310,57 @@ export class TabManager {
   getActiveTabUrl(): string { return this.getActiveTab()?.url || ''; }
   getActiveTabTitle(): string { return this.getActiveTab()?.title || ''; }
   getAllViews(): WebContentsView[] { return this.tabs.map(t => t.view); }
+  getAllTabIds(): string[] { return this.tabs.map(t => t.id); }
+
+  /** Public tab lookup (for SplitViewManager) */
+  findTabById(id: string): ManagedTab | undefined {
+    return this.tabIndex.get(id);
+  }
+
+  /** Get tabs belonging to a specific workspace (for SpaceManager) */
+  getTabsForSpace(spaceId: string): ManagedTab[] {
+    return this.tabs.filter(t => t.spaceId === spaceId || t.isPinned);
+  }
+
+  /** Move all tabs from one workspace to another (used during space deletion) */
+  moveTabsToSpace(fromSpaceId: string, toSpaceId: string): void {
+    for (const tab of this.tabs) {
+      if (tab.spaceId === fromSpaceId) {
+        tab.spaceId = toSpaceId;
+      }
+    }
+    this.scheduleSend();
+  }
+
+  /**
+   * Hibernate a tab — crash its renderer to reclaim memory (Helium pattern).
+   * The URL and scroll position are saved so the tab can be restored on click.
+   */
+  hibernateTab(tabId: string): void {
+    const tab = this.findTab(tabId);
+    if (!tab || tab.id === this.activeTabId || tab.isHibernated) return;
+
+    // Don't hibernate if media is playing
+    if (tab.view.webContents.isCurrentlyAudible()) return;
+
+    try {
+      tab.view.webContents.forcefullyCrashRenderer();
+      tab.isHibernated = true;
+      tab.isLoading = false;
+      this.scheduleSend();
+      console.log(`[Astra] 🌙 Hibernated tab: ${tab.title}`);
+    } catch (err) {
+      console.error('[Astra] Hibernate failed:', err);
+    }
+  }
+
+  /** Wake a hibernated tab by reloading its URL */
+  private wakeTab(tab: ManagedTab): void {
+    if (!tab.isHibernated) return;
+    tab.isHibernated = false;
+    tab.view.webContents.loadURL(tab.url);
+    console.log(`[Astra] ☀️ Woke tab: ${tab.title}`);
+  }
 
   /**
    * Send full tab state to sidebar.
@@ -302,14 +368,23 @@ export class TabManager {
    * For internal use, prefer `scheduleSend()` which throttles.
    */
   sendTabsToSidebar(): void {
-    const tabData: TabData[] = this.tabs.map(t => ({
+    const activeSpaceId = this.spaceManager?.getActiveSpaceId() || '';
+
+    // Only send tabs for the active workspace + pinned (essential) tabs
+    const visibleTabs = activeSpaceId
+      ? this.tabs.filter(t => t.spaceId === activeSpaceId || t.isPinned)
+      : this.tabs;
+
+    const tabData: TabData[] = visibleTabs.map(t => ({
       id: t.id, title: t.title, url: t.url, favicon: t.favicon,
       isLoading: t.isLoading, isSecure: t.isSecure,
-      isPinned: t.isPinned, zoomLevel: t.zoomLevel,
+      isPinned: t.isPinned, isHibernated: t.isHibernated,
+      zoomLevel: t.zoomLevel, spaceId: t.spaceId,
     }));
     this.sidebarView.webContents.send(IPC.TABS_UPDATED, {
       tabs: tabData,
       activeTabId: this.activeTabId,
+      activeSpaceId,
     });
     this.sendPending = false;
   }
@@ -409,10 +484,12 @@ export class TabManager {
 
       if (params.linkURL) {
         items.push(
-          { label: 'Open Link in New Tab', click: () => {
-            const t = this.createTab(params.linkURL);
-            this.switchToTab(t.id);
-          }},
+          {
+            label: 'Open Link in New Tab', click: () => {
+              const t = this.createTab(params.linkURL);
+              this.switchToTab(t.id);
+            }
+          },
           { label: 'Copy Link Address', click: () => require('electron').clipboard.writeText(params.linkURL) },
           { type: 'separator' },
         );
@@ -470,6 +547,22 @@ export class TabManager {
       activeTab.view.setBounds({
         x: CONFIG.SIDEBAR_WIDTH, y: 0,
         width: width - CONFIG.SIDEBAR_WIDTH, height,
+      });
+    }
+  }
+
+  /**
+   * Layout with a custom sidebar width (used by CompactModeManager).
+   * When compact mode hides/shows the sidebar, we need to adjust tab bounds.
+   */
+  layoutWithSidebarWidth(sidebarWidth: number): void {
+    const { width, height } = this.mainWindow.getContentBounds();
+    const activeTab = this.getActiveTab();
+
+    if (activeTab) {
+      activeTab.view.setBounds({
+        x: sidebarWidth, y: 0,
+        width: width - sidebarWidth, height,
       });
     }
   }

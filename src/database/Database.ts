@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'node:path';
-import { HistoryEntry, Bookmark, UrlSuggestion, SessionTab, CONFIG } from '../types';
+import { HistoryEntry, Bookmark, UrlSuggestion, SessionTab, Space, CONFIG } from '../types';
 
 /**
  * AppDatabase — SQLite with WAL mode, prepared statements, indexed columns.
@@ -26,6 +26,15 @@ export class AppDatabase {
   private readonly stmtGetSession: Database.Statement;
   private readonly stmtGetFullHistory: Database.Statement;
   private readonly stmtClearHistory: Database.Statement;
+
+  // Workspace statements
+  private readonly stmtInsertSpace: Database.Statement;
+  private readonly stmtUpdateSpaceName: Database.Statement;
+  private readonly stmtUpdateSpaceColor: Database.Statement;
+  private readonly stmtUpdateSpacePosition: Database.Statement;
+  private readonly stmtDeleteSpace: Database.Statement;
+  private readonly stmtGetSpaces: Database.Statement;
+  private readonly stmtGetSpace: Database.Statement;
 
   constructor() {
     const dbPath = path.join(app.getPath('userData'), 'astra.db');
@@ -63,13 +72,24 @@ export class AppDatabase {
     this.stmtFindHistory = this.db.prepare('SELECT id FROM history WHERE url = ?');
 
     this.stmtSaveSession = this.db.prepare(
-      `INSERT INTO session (url, title, is_pinned, position) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO session (url, title, is_pinned, position, space_id) VALUES (?, ?, ?, ?, ?)`,
     );
 
     this.stmtClearSession = this.db.prepare(`DELETE FROM session`);
     this.stmtGetSession = this.db.prepare(`SELECT * FROM session ORDER BY position ASC`);
     this.stmtGetFullHistory = this.db.prepare(`SELECT * FROM history ORDER BY last_visited_at DESC LIMIT 200`);
     this.stmtClearHistory = this.db.prepare(`DELETE FROM history`);
+
+    // Workspace statements
+    this.stmtInsertSpace = this.db.prepare(
+      `INSERT INTO spaces (id, name, color, icon, position, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    this.stmtUpdateSpaceName = this.db.prepare(`UPDATE spaces SET name = ? WHERE id = ?`);
+    this.stmtUpdateSpaceColor = this.db.prepare(`UPDATE spaces SET color = ? WHERE id = ?`);
+    this.stmtUpdateSpacePosition = this.db.prepare(`UPDATE spaces SET position = ? WHERE id = ?`);
+    this.stmtDeleteSpace = this.db.prepare(`DELETE FROM spaces WHERE id = ?`);
+    this.stmtGetSpaces = this.db.prepare(`SELECT * FROM spaces ORDER BY position ASC`);
+    this.stmtGetSpace = this.db.prepare(`SELECT * FROM spaces WHERE id = ?`);
 
     console.log('[Astra] 💾 Database initialized:', dbPath);
   }
@@ -128,7 +148,7 @@ export class AppDatabase {
     const saveAll = this.db.transaction((sessionTabs: SessionTab[]) => {
       this.stmtClearSession.run();
       for (const tab of sessionTabs) {
-        this.stmtSaveSession.run(tab.url, tab.title, tab.isPinned ? 1 : 0, tab.position);
+        this.stmtSaveSession.run(tab.url, tab.title, tab.isPinned ? 1 : 0, tab.position, tab.spaceId);
       }
     });
     saveAll(tabs);
@@ -141,7 +161,40 @@ export class AppDatabase {
       title: r.title,
       isPinned: !!r.is_pinned,
       position: r.position,
+      spaceId: r.space_id || '',
     }));
+  }
+
+  // --------------------------------------------------
+  // Workspaces (inspired by Zen Browser's Spaces)
+  // --------------------------------------------------
+
+  createSpace(space: Space): void {
+    this.stmtInsertSpace.run(space.id, space.name, space.color, space.icon, space.position, space.createdAt);
+  }
+
+  renameSpace(id: string, name: string): void {
+    this.stmtUpdateSpaceName.run(name, id);
+  }
+
+  updateSpaceColor(id: string, color: string): void {
+    this.stmtUpdateSpaceColor.run(color, id);
+  }
+
+  updateSpacePosition(id: string, position: number): void {
+    this.stmtUpdateSpacePosition.run(position, id);
+  }
+
+  deleteSpace(id: string): void {
+    this.stmtDeleteSpace.run(id);
+  }
+
+  getSpaces(): Space[] {
+    return this.stmtGetSpaces.all() as Space[];
+  }
+
+  getSpace(id: string): Space | undefined {
+    return this.stmtGetSpace.get(id) as Space | undefined;
   }
 
   // Schema
@@ -165,13 +218,30 @@ export class AppDatabase {
         url TEXT NOT NULL,
         title TEXT DEFAULT '',
         is_pinned INTEGER DEFAULT 0,
-        position INTEGER DEFAULT 0
+        position INTEGER DEFAULT 0,
+        space_id TEXT DEFAULT ''
+      );
+      CREATE TABLE IF NOT EXISTS spaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        color TEXT DEFAULT '#6366f1',
+        icon TEXT DEFAULT '🌐',
+        position INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_history_url ON history(url);
       CREATE INDEX IF NOT EXISTS idx_history_title ON history(title);
       CREATE INDEX IF NOT EXISTS idx_history_visited ON history(last_visited_at DESC);
       CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
+      CREATE INDEX IF NOT EXISTS idx_spaces_position ON spaces(position ASC);
     `);
+
+    // Migration: add space_id to session if missing
+    try {
+      this.db.prepare(`SELECT space_id FROM session LIMIT 1`).get();
+    } catch {
+      this.db.exec(`ALTER TABLE session ADD COLUMN space_id TEXT DEFAULT ''`);
+    }
   }
 
   close(): void {

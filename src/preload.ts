@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('astra', {
   pinTab: (tabId: string) => ipcRenderer.send('pin-tab', tabId),
   unpinTab: (tabId: string) => ipcRenderer.send('unpin-tab', tabId),
   reorderTabs: (oldIndex: number, newIndex: number) => ipcRenderer.send('reorder-tabs', { oldIndex, newIndex }),
+  hibernateTab: (tabId: string) => ipcRenderer.send('hibernate-tab', tabId),
 
   // URL suggestions
   searchSuggestions: (query: string) => ipcRenderer.send('search-suggestions', query),
@@ -40,6 +41,38 @@ contextBridge.exposeInMainWorld('astra', {
   findInPage: (text: string) => ipcRenderer.send('find-in-page', text),
   stopFind: () => ipcRenderer.send('find-stop'),
 
+  // Workspaces (inspired by Zen Browser's Spaces)
+  switchSpace: (spaceId: string) => ipcRenderer.send('space:switch', spaceId),
+  createSpace: (data: { name: string; color: string; icon: string }) => ipcRenderer.send('space:create', data),
+  deleteSpace: (spaceId: string) => ipcRenderer.send('space:delete', spaceId),
+  renameSpace: (spaceId: string, name: string) => ipcRenderer.send('space:rename', { spaceId, name }),
+  reorderSpaces: (spaceId: string, newIndex: number) => ipcRenderer.send('space:reorder', { spaceId, newIndex }),
+  updateSpaceColor: (spaceId: string, color: string) => ipcRenderer.send('space:update-color', { spaceId, color }),
+  requestSpaces: () => ipcRenderer.send('request-spaces'),
+
+  // Compact Mode (Zen-inspired auto-hide sidebar)
+  toggleCompactMode: () => ipcRenderer.send('compact:toggle'),
+  setCompactMode: (mode: string) => ipcRenderer.send('compact:set-mode', mode),
+  reportMouseMove: (x: number, y: number) => ipcRenderer.send('compact:mouse-move', { x, y }),
+  lockPopup: () => ipcRenderer.send('compact:lock-popup'),
+  unlockPopup: () => ipcRenderer.send('compact:unlock-popup'),
+
+  // Glance (Zen-inspired link preview)
+  openGlance: (url: string, x: number, y: number) => ipcRenderer.send('glance:open', { url, x, y }),
+  closeGlance: () => ipcRenderer.send('glance:close'),
+  expandGlance: () => ipcRenderer.send('glance:expand'),
+
+  // Split View (Helium + Zen combined)
+  splitView: (leftTabId: string, rightTabId?: string, direction?: string) =>
+    ipcRenderer.send('split:enter', { leftTabId, rightTabId, direction }),
+  exitSplitView: () => ipcRenderer.send('split:exit'),
+  toggleSplitDirection: () => ipcRenderer.send('split:toggle-direction'),
+  swapSplitPanes: () => ipcRenderer.send('split:swap'),
+
+  // Privacy (Helium-inspired)
+  togglePrivacy: () => ipcRenderer.send('privacy:toggle'),
+  getPrivacyState: () => ipcRenderer.send('privacy:get-state'),
+
   // Event listeners (Main → Sidebar)
   onTabsUpdated: (cb: Function) => ipcRenderer.on('tabs-updated', (_e: any, d: any) => cb(d)),
   onUrlChanged: (cb: Function) => ipcRenderer.on('url-changed', (_e: any, url: string) => cb(url)),
@@ -52,4 +85,11 @@ contextBridge.exposeInMainWorld('astra', {
   onFindResult: (cb: Function) => ipcRenderer.on('find-result', (_e: any, d: any) => cb(d)),
   onShowFindBar: (cb: Function) => ipcRenderer.on('show-find-bar', () => cb()),
   onZoomChanged: (cb: Function) => ipcRenderer.on('zoom-changed', (_e: any, z: number) => cb(z)),
+  onSpacesUpdated: (cb: Function) => ipcRenderer.on('spaces-updated', (_e: any, d: any) => cb(d)),
+  onUrlCopied: (cb: Function) => ipcRenderer.on('url-copied', (_e: any, url: string) => cb(url)),
+  onCompactState: (cb: Function) => ipcRenderer.on('compact:state', (_e: any, d: any) => cb(d)),
+  onGlanceOpened: (cb: Function) => ipcRenderer.on('glance:opened', (_e: any, d: any) => cb(d)),
+  onGlanceClosed: (cb: Function) => ipcRenderer.on('glance:closed', () => cb()),
+  onSplitState: (cb: Function) => ipcRenderer.on('split:state', (_e: any, d: any) => cb(d)),
+  onPrivacyState: (cb: Function) => ipcRenderer.on('privacy:state', (_e: any, d: any) => cb(d)),
 });

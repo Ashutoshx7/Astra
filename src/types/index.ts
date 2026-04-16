@@ -13,7 +13,9 @@ export interface ManagedTab {
   isLoading: boolean;
   isSecure: boolean;
   isPinned: boolean;
+  isHibernated: boolean;
   zoomLevel: number;
+  spaceId: string;
 }
 
 export interface TabData {
@@ -24,12 +26,15 @@ export interface TabData {
   isLoading: boolean;
   isSecure: boolean;
   isPinned: boolean;
+  isHibernated: boolean;
   zoomLevel: number;
+  spaceId: string;
 }
 
 export interface TabsUpdatedPayload {
   tabs: TabData[];
   activeTabId: string | null;
+  activeSpaceId: string;
 }
 
 /** Tab data saved to SQLite for session restore */
@@ -37,6 +42,28 @@ export interface SessionTab {
   url: string;
   title: string;
   isPinned: boolean;
+  position: number;
+  spaceId: string;
+}
+
+// --------------------------------------------------
+// Workspaces (inspired by Zen Browser's Spaces)
+// --------------------------------------------------
+
+export interface Space {
+  readonly id: string;
+  name: string;
+  color: string;
+  icon: string;
+  position: number;
+  createdAt: number;
+}
+
+export interface SpaceData {
+  readonly id: string;
+  name: string;
+  color: string;
+  icon: string;
   position: number;
 }
 
@@ -103,6 +130,18 @@ export const IPC = {
   GET_HISTORY: 'get-history',
   REORDER_TABS: 'reorder-tabs',
 
+  // Workspace IPC (Sidebar → Main)
+  SPACE_SWITCH: 'space:switch',
+  SPACE_CREATE: 'space:create',
+  SPACE_DELETE: 'space:delete',
+  SPACE_RENAME: 'space:rename',
+  SPACE_REORDER: 'space:reorder',
+  SPACE_UPDATE_COLOR: 'space:update-color',
+  REQUEST_SPACES: 'request-spaces',
+
+  // Hibernate
+  HIBERNATE_TAB: 'hibernate-tab',
+
   // Main → Sidebar
   TABS_UPDATED: 'tabs-updated',
   URL_CHANGED: 'url-changed',
@@ -115,6 +154,7 @@ export const IPC = {
   FIND_RESULT: 'find-result',
   SHOW_FIND_BAR: 'show-find-bar',
   ZOOM_CHANGED: 'zoom-changed',
+  SPACES_UPDATED: 'spaces-updated',
 } as const;
 
 // --------------------------------------------------

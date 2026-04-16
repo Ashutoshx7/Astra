@@ -1,7 +1,11 @@
-import { WebContentsView } from 'electron';
+import { WebContentsView, clipboard } from 'electron';
 import { TabManager } from './TabManager';
 import { AppDatabase } from '../database/Database';
 import { IPC } from '../types';
+import type { SpaceManager } from './SpaceManager';
+import type { CompactModeManager } from './CompactModeManager';
+import type { GlanceManager } from './GlanceManager';
+import type { SplitViewManager } from './SplitViewManager';
 
 type ShortcutHandler = (event: Electron.Event, input: Electron.Input) => void;
 
@@ -25,6 +29,10 @@ type ShortcutHandler = (event: Electron.Event, input: Electron.Input) => void;
  */
 export class ShortcutManager {
   private readonly handler: ShortcutHandler;
+  private spaceManager: SpaceManager | null = null;
+  private compactMode: CompactModeManager | null = null;
+  private glanceManager: GlanceManager | null = null;
+  private splitView: SplitViewManager | null = null;
 
   constructor(
     private readonly tabManager: TabManager,
@@ -35,15 +43,31 @@ export class ShortcutManager {
     this.handler = this.handleInput.bind(this);
   }
 
+  setSpaceManager(sm: SpaceManager): void {
+    this.spaceManager = sm;
+  }
+
+  setCompactMode(cm: CompactModeManager): void {
+    this.compactMode = cm;
+  }
+
+  setGlanceManager(gm: GlanceManager): void {
+    this.glanceManager = gm;
+  }
+
+  setSplitView(sv: SplitViewManager): void {
+    this.splitView = sv;
+  }
+
   initialize(): void {
     this.sidebarView.webContents.on('before-input-event', this.handler);
     for (const view of this.tabManager.getAllViews()) {
       this.attachToView(view);
     }
-    this.tabManager.setOnViewCreated((view) => this.attachToView(view));
+    // Note: onViewCreated is now set in main.ts to also inject FingerprintGuard
   }
 
-  private attachToView(view: WebContentsView): void {
+  attachToView(view: WebContentsView): void {
     view.webContents.on('before-input-event', this.handler);
   }
 
@@ -148,12 +172,63 @@ export class ShortcutManager {
       return;
     }
 
-    // Escape → Stop find / exit fullscreen
+    // Escape — Stop find / exit fullscreen / close glance
     if (input.key === 'Escape') {
+      // Close glance first if active
+      if (this.glanceManager?.isActive()) {
+        event.preventDefault();
+        this.glanceManager.close();
+        return;
+      }
       this.tabManager.stopFind();
-      this.sidebarView.webContents.send(IPC.FIND_RESULT, null); // hide find bar
+      this.sidebarView.webContents.send(IPC.FIND_RESULT, null);
       const win = this.getMainWindow();
       if (win?.isFullScreen()) win.setFullScreen(false);
+      return;
+    }
+
+    // Ctrl+S — Toggle compact mode (Zen's sidebar toggle shortcut)
+    if (ctrl && input.key === 's') {
+      event.preventDefault();
+      this.compactMode?.toggleMode();
+      return;
+    }
+
+    // Ctrl+Shift+C — Copy page URL (Helium shortcut remap)
+    if (ctrl && input.shift && input.key === 'C') {
+      event.preventDefault();
+      const url = this.tabManager.getActiveTabUrl();
+      if (url) {
+        clipboard.writeText(url);
+        // Flash a brief notification to sidebar
+        this.sidebarView.webContents.send('url-copied', url);
+      }
+      return;
+    }
+
+    // Ctrl+Alt+Right — Next workspace (Zen shortcut)
+    if (ctrl && input.alt && input.key === 'ArrowRight') {
+      event.preventDefault();
+      this.spaceManager?.switchToNextSpace();
+      return;
+    }
+
+    // Ctrl+Alt+Left — Previous workspace (Zen shortcut)
+    if (ctrl && input.alt && input.key === 'ArrowLeft') {
+      event.preventDefault();
+      this.spaceManager?.switchToPreviousSpace();
+      return;
+    }
+
+    // Ctrl+Shift+S — Toggle split view
+    if (ctrl && input.shift && input.key === 'S') {
+      event.preventDefault();
+      if (this.splitView?.isActive()) {
+        this.splitView.unsplit();
+      } else {
+        const activeId = this.tabManager.getActiveTabId();
+        if (activeId) this.splitView?.split(activeId);
+      }
       return;
     }
   }
