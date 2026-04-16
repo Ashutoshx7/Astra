@@ -1,6 +1,8 @@
-import { app, BaseWindow, WebContentsView, ipcMain } from 'electron';
+import { app, BaseWindow, WebContentsView, ipcMain, session } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { ElectronBlocker } from '@ghostery/adblocker-electron';
+import fetch from 'cross-fetch';
 
 if (started) {
   app.quit();
@@ -8,6 +10,11 @@ if (started) {
 
 const SIDEBAR_WIDTH = 280;
 
+// Prevent MaxListeners warning — each tab adds multiple event listeners
+require('events').defaultMaxListeners = 50;
+
+// Track blocked requests per tab
+const blockedCounts: Map<string, number> = new Map();
 // =============================================
 // TAB STORAGE — each tab is a WebContentsView
 // =============================================
@@ -342,7 +349,31 @@ const createWindow = () => {
   sidebarView.webContents.openDevTools({ mode: 'detach' });
 };
 
-app.on('ready', createWindow);
+app.on('ready', async () => {
+  // Initialize ad blocker BEFORE creating the window
+  try {
+    const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch);
+    blocker.enableBlockingInSession(session.defaultSession);
+
+    // Track blocked requests
+    blocker.on('request-blocked', (request: any) => {
+      // Find which tab this request belongs to
+      for (const tab of tabs) {
+        if (tab.view.webContents.id === request.tabId) {
+          const count = (blockedCounts.get(tab.id) || 0) + 1;
+          blockedCounts.set(tab.id, count);
+          break;
+        }
+      }
+    });
+
+    console.log('[Astra] 🛡️ Ad blocker enabled — ads & trackers will be blocked');
+  } catch (err) {
+    console.error('[Astra] Failed to initialize ad blocker:', err);
+  }
+
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
