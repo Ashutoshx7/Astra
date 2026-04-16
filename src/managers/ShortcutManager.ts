@@ -1,5 +1,6 @@
 import { WebContentsView } from 'electron';
 import { TabManager } from './TabManager';
+import { AppDatabase } from '../database/Database';
 import { IPC, CONFIG } from '../types';
 
 type ShortcutHandler = (event: Electron.Event, input: Electron.Input) => void;
@@ -7,8 +8,14 @@ type ShortcutHandler = (event: Electron.Event, input: Electron.Input) => void;
 /**
  * ShortcutManager — handles all keyboard shortcuts.
  *
- * Listens for 'before-input-event' on both the sidebar and all web views.
- * New views are automatically registered via TabManager.setOnViewCreated().
+ * Shortcuts:
+ *   Ctrl+T      → New tab
+ *   Ctrl+W      → Close current tab
+ *   Ctrl+Tab    → Next tab
+ *   Ctrl+Shift+Tab → Previous tab
+ *   Ctrl+L      → Focus URL bar
+ *   Ctrl+R / F5 → Refresh
+ *   Ctrl+D      → Toggle bookmark
  */
 export class ShortcutManager {
   private readonly handler: ShortcutHandler;
@@ -16,46 +23,40 @@ export class ShortcutManager {
   constructor(
     private readonly tabManager: TabManager,
     private readonly sidebarView: WebContentsView,
+    private readonly database: AppDatabase,
   ) {
-    // Bind the handler once (avoids creating new functions per event)
     this.handler = this.handleInput.bind(this);
   }
 
-  /** Start listening for shortcuts on the sidebar and all existing tab views */
   initialize(): void {
     this.sidebarView.webContents.on('before-input-event', this.handler);
 
-    // Attach to existing tab views
     for (const view of this.tabManager.getAllViews()) {
       this.attachToView(view);
     }
 
-    // Attach to future tab views
     this.tabManager.setOnViewCreated((view) => this.attachToView(view));
   }
 
-  /** Attach shortcut listener to a specific WebContentsView */
   private attachToView(view: WebContentsView): void {
     view.webContents.on('before-input-event', this.handler);
   }
 
-  /** Handle keyboard input and dispatch to the correct action */
   private handleInput(event: Electron.Event, input: Electron.Input): void {
     if (input.type !== 'keyDown') return;
-
     const ctrl = input.control || input.meta;
 
     if (ctrl && input.key === 't') {
       event.preventDefault();
-      const tab = this.tabManager.createTab(CONFIG.DEFAULT_URL);
+      const tab = this.tabManager.createTab();
       this.tabManager.switchToTab(tab.id);
       return;
     }
 
     if (ctrl && input.key === 'w') {
       event.preventDefault();
-      const activeId = this.tabManager.getActiveTabId();
-      if (activeId) this.tabManager.closeTab(activeId);
+      const id = this.tabManager.getActiveTabId();
+      if (id) this.tabManager.closeTab(id);
       return;
     }
 
@@ -80,6 +81,23 @@ export class ShortcutManager {
     if ((ctrl && input.key === 'r') || input.key === 'F5') {
       event.preventDefault();
       this.tabManager.reload();
+      return;
+    }
+
+    // Ctrl+D → Toggle bookmark
+    if (ctrl && input.key === 'd') {
+      event.preventDefault();
+      const url = this.tabManager.getActiveTabUrl();
+      const title = this.tabManager.getActiveTabTitle();
+      if (!url || url.startsWith('data:') || url.startsWith('astra://')) return;
+
+      if (this.database.isBookmarked(url)) {
+        this.database.removeBookmark(url);
+        this.sidebarView.webContents.send(IPC.BOOKMARK_STATUS, false);
+      } else {
+        this.database.addBookmark(url, title);
+        this.sidebarView.webContents.send(IPC.BOOKMARK_STATUS, true);
+      }
       return;
     }
   }

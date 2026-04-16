@@ -1,18 +1,13 @@
 /**
  * Astra Browser — Main Process Entry Point
  *
- * This file orchestrates the app lifecycle:
- *   1. Initialize ad blocker
- *   2. Create the window (BaseWindow + sidebar WebContentsView)
- *   3. Start TabManager, ShortcutManager
- *   4. Register IPC handlers
- *
- * Business logic lives in:
- *   - managers/TabManager.ts    — tab lifecycle
- *   - managers/AdBlocker.ts     — ad/tracker blocking
- *   - managers/ShortcutManager.ts — keyboard shortcuts
- *   - types/index.ts            — shared interfaces
- *   - utils/url.ts              — URL parsing
+ * Orchestrates:
+ *   - AdBlocker          → Network-level ad/tracker blocking
+ *   - AppDatabase        → SQLite for history + bookmarks
+ *   - TabManager         → Tab lifecycle (create/switch/close)
+ *   - ShortcutManager    → Keyboard shortcuts
+ *   - DownloadManager    → File download tracking (via TabManager)
+ *   - IPC Handlers       → Bridge between sidebar and managers
  */
 
 import { app, BaseWindow, WebContentsView, ipcMain } from 'electron';
@@ -22,27 +17,21 @@ import started from 'electron-squirrel-startup';
 import { TabManager } from './managers/TabManager';
 import { AdBlocker } from './managers/AdBlocker';
 import { ShortcutManager } from './managers/ShortcutManager';
+import { AppDatabase } from './database/Database';
 import { IPC, CONFIG } from './types';
 import { parseUrl } from './utils/url';
 
-// Prevent MaxListeners warning — each tab adds multiple event listeners
 require('events').defaultMaxListeners = CONFIG.MAX_LISTENERS;
 
-// Handle Squirrel installer events on Windows
 if (started) {
   app.quit();
 }
 
 // --------------------------------------------------
-// App-level singletons
-// --------------------------------------------------
-let tabManager: TabManager;
-
-// --------------------------------------------------
 // Window creation
 // --------------------------------------------------
 
-function createWindow(): void {
+function createWindow(database: AppDatabase): void {
   const mainWindow = new BaseWindow({
     width: CONFIG.WINDOW.WIDTH,
     height: CONFIG.WINDOW.HEIGHT,
@@ -58,7 +47,6 @@ function createWindow(): void {
     },
   });
 
-  // Sidebar — renders the React UI
   const sidebarView = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -69,7 +57,6 @@ function createWindow(): void {
   });
   mainWindow.contentView.addChildView(sidebarView);
 
-  // Load sidebar UI
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     sidebarView.webContents.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
@@ -82,49 +69,57 @@ function createWindow(): void {
   // Initialize managers
   // --------------------------------------------------
 
-  tabManager = new TabManager(mainWindow, sidebarView);
-  const shortcutManager = new ShortcutManager(tabManager, sidebarView);
+  const tabManager = new TabManager(mainWindow, sidebarView, database);
+  const shortcutManager = new ShortcutManager(tabManager, sidebarView, database);
 
-  // Create the first tab
-  const firstTab = tabManager.createTab(CONFIG.DEFAULT_URL);
+  // Create the first tab (new tab page)
+  const firstTab = tabManager.createTab();
   tabManager.switchToTab(firstTab.id);
 
-  // Start listening for keyboard shortcuts
   shortcutManager.initialize();
-
-  // Re-layout on resize (no tab switch, just reposition)
   mainWindow.on('resize', () => tabManager.layout());
 
   // --------------------------------------------------
-  // IPC Handlers — bridge between sidebar and managers
+  // IPC Handlers
   // --------------------------------------------------
 
-  ipcMain.on(IPC.REQUEST_TABS, () => {
-    tabManager.sendTabsToSidebar();
-  });
-
-  ipcMain.on(IPC.NAVIGATE, (_event, url: string) => {
-    tabManager.navigateActiveTab(parseUrl(url));
-  });
-
+  ipcMain.on(IPC.REQUEST_TABS, () => tabManager.sendTabsToSidebar());
+  ipcMain.on(IPC.NAVIGATE, (_e, url: string) => tabManager.navigateActiveTab(parseUrl(url)));
   ipcMain.on(IPC.GO_BACK, () => tabManager.goBack());
   ipcMain.on(IPC.GO_FORWARD, () => tabManager.goForward());
   ipcMain.on(IPC.REFRESH, () => tabManager.reload());
 
-  ipcMain.on(IPC.NEW_TAB, (_event, url?: string) => {
-    const newTab = tabManager.createTab(url || CONFIG.DEFAULT_URL);
-    tabManager.switchToTab(newTab.id);
+  ipcMain.on(IPC.NEW_TAB, (_e, url?: string) => {
+    const tab = tabManager.createTab(url || undefined);
+    tabManager.switchToTab(tab.id);
   });
 
-  ipcMain.on(IPC.CLOSE_TAB, (_event, tabId: string) => {
-    tabManager.closeTab(tabId);
+  ipcMain.on(IPC.CLOSE_TAB, (_e, tabId: string) => tabManager.closeTab(tabId));
+  ipcMain.on(IPC.SWITCH_TAB, (_e, tabId: string) => tabManager.switchToTab(tabId));
+
+  // URL suggestions (debounced on the renderer side)
+  ipcMain.on(IPC.SEARCH_SUGGESTIONS, (_e, query: string) => {
+    const suggestions = database.getSuggestions(query);
+    sidebarView.webContents.send(IPC.SUGGESTIONS_RESULT, suggestions);
   });
 
-  ipcMain.on(IPC.SWITCH_TAB, (_event, tabId: string) => {
-    tabManager.switchToTab(tabId);
+  // Bookmarks
+  ipcMain.on(IPC.ADD_BOOKMARK, (_e, data: { url: string; title: string }) => {
+    database.addBookmark(data.url, data.title);
+    sidebarView.webContents.send(IPC.BOOKMARK_STATUS, true);
   });
 
-  // DevTools for debugging (remove in production)
+  ipcMain.on(IPC.REMOVE_BOOKMARK, (_e, url: string) => {
+    database.removeBookmark(url);
+    sidebarView.webContents.send(IPC.BOOKMARK_STATUS, false);
+  });
+
+  ipcMain.on(IPC.GET_BOOKMARKS, () => {
+    const bookmarks = database.getBookmarks();
+    sidebarView.webContents.send(IPC.BOOKMARKS_RESULT, bookmarks);
+  });
+
+  // DevTools in dev mode only
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     sidebarView.webContents.openDevTools({ mode: 'detach' });
   }
@@ -135,21 +130,23 @@ function createWindow(): void {
 // --------------------------------------------------
 
 app.on('ready', async () => {
-  // Initialize ad blocker before creating any windows
   const adBlocker = new AdBlocker();
   await adBlocker.initialize();
 
-  createWindow();
+  const database = new AppDatabase();
+  createWindow(database);
+
+  // Clean up on quit
+  app.on('before-quit', () => database.close());
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('activate', () => {
   if (BaseWindow.getAllWindows().length === 0) {
-    createWindow();
+    const database = new AppDatabase();
+    createWindow(database);
   }
 });

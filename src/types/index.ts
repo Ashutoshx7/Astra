@@ -1,9 +1,10 @@
 import { WebContentsView } from 'electron';
 
-/**
- * Represents a browser tab managed by the main process.
- * Each tab owns a separate WebContentsView (Chromium renderer).
- */
+// --------------------------------------------------
+// Tab Types
+// --------------------------------------------------
+
+/** A browser tab managed by the main process */
 export interface ManagedTab {
   readonly id: string;
   readonly view: WebContentsView;
@@ -11,27 +12,66 @@ export interface ManagedTab {
   url: string;
   favicon: string;
   isLoading: boolean;
+  isSecure: boolean;
 }
 
-/**
- * Serializable tab data sent to the sidebar via IPC.
- * Excludes the WebContentsView reference (not transferable over IPC).
- */
+/** Serializable tab data (sent to sidebar via IPC) */
 export interface TabData {
   readonly id: string;
   title: string;
   url: string;
   favicon: string;
   isLoading: boolean;
+  isSecure: boolean;
 }
 
-/** Payload sent on the 'tabs-updated' IPC channel */
 export interface TabsUpdatedPayload {
   tabs: TabData[];
   activeTabId: string | null;
 }
 
-/** IPC channel names — single source of truth */
+// --------------------------------------------------
+// History & Bookmarks
+// --------------------------------------------------
+
+export interface HistoryEntry {
+  id: number;
+  url: string;
+  title: string;
+  visitCount: number;
+  lastVisitedAt: number;
+}
+
+export interface Bookmark {
+  id: number;
+  url: string;
+  title: string;
+  createdAt: number;
+}
+
+export interface DownloadItem {
+  id: string;
+  filename: string;
+  url: string;
+  totalBytes: number;
+  receivedBytes: number;
+  state: 'progressing' | 'completed' | 'cancelled' | 'interrupted';
+}
+
+// --------------------------------------------------
+// URL Bar suggestions
+// --------------------------------------------------
+
+export interface UrlSuggestion {
+  url: string;
+  title: string;
+  type: 'history' | 'bookmark';
+}
+
+// --------------------------------------------------
+// IPC Channels (single source of truth)
+// --------------------------------------------------
+
 export const IPC = {
   // Sidebar → Main
   NAVIGATE: 'navigate',
@@ -42,19 +82,33 @@ export const IPC = {
   CLOSE_TAB: 'close-tab',
   SWITCH_TAB: 'switch-tab',
   REQUEST_TABS: 'request-tabs',
+  SEARCH_SUGGESTIONS: 'search-suggestions',
+  ADD_BOOKMARK: 'add-bookmark',
+  REMOVE_BOOKMARK: 'remove-bookmark',
+  GET_BOOKMARKS: 'get-bookmarks',
 
   // Main → Sidebar
   TABS_UPDATED: 'tabs-updated',
   URL_CHANGED: 'url-changed',
   FOCUS_URL_BAR: 'focus-url-bar',
+  SUGGESTIONS_RESULT: 'suggestions-result',
+  BOOKMARKS_RESULT: 'bookmarks-result',
+  BOOKMARK_STATUS: 'bookmark-status',
+  DOWNLOAD_UPDATED: 'download-updated',
 } as const;
 
-/** Browser configuration constants */
+// --------------------------------------------------
+// Configuration
+// --------------------------------------------------
+
 export const CONFIG = {
   SIDEBAR_WIDTH: 280,
   DEFAULT_URL: 'https://duckduckgo.com',
+  NEW_TAB_URL: 'astra://newtab',
   SEARCH_URL: 'https://duckduckgo.com/?q=',
   MAX_LISTENERS: 50,
+  MAX_SUGGESTIONS: 6,
+  HISTORY_DEBOUNCE_MS: 300,
   WINDOW: {
     WIDTH: 1200,
     HEIGHT: 800,
