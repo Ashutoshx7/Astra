@@ -98,12 +98,18 @@ export const IPC = {
   FIND_NEXT: 'find-next',
   FIND_STOP: 'find-stop',
 
+  CLEAR_HISTORY: 'clear-history',
+  UPDATE_SETTINGS: 'update-settings',
+  GET_HISTORY: 'get-history',
+  REORDER_TABS: 'reorder-tabs',
+
   // Main → Sidebar
   TABS_UPDATED: 'tabs-updated',
   URL_CHANGED: 'url-changed',
   FOCUS_URL_BAR: 'focus-url-bar',
   SUGGESTIONS_RESULT: 'suggestions-result',
   BOOKMARKS_RESULT: 'bookmarks-result',
+  HISTORY_RESULT: 'history-result',
   BOOKMARK_STATUS: 'bookmark-status',
   DOWNLOAD_UPDATED: 'download-updated',
   FIND_RESULT: 'find-result',

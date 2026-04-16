@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('astra', {
   requestTabs: () => ipcRenderer.send('request-tabs'),
   pinTab: (tabId: string) => ipcRenderer.send('pin-tab', tabId),
   unpinTab: (tabId: string) => ipcRenderer.send('unpin-tab', tabId),
+  reorderTabs: (oldIndex: number, newIndex: number) => ipcRenderer.send('reorder-tabs', { oldIndex, newIndex }),
 
   // URL suggestions
   searchSuggestions: (query: string) => ipcRenderer.send('search-suggestions', query),
@@ -32,6 +33,8 @@ contextBridge.exposeInMainWorld('astra', {
   addBookmark: (url: string, title: string) => ipcRenderer.send('add-bookmark', { url, title }),
   removeBookmark: (url: string) => ipcRenderer.send('remove-bookmark', url),
   getBookmarks: () => ipcRenderer.send('get-bookmarks'),
+  getHistory: () => ipcRenderer.send('get-history'),
+  clearHistory: () => ipcRenderer.send('clear-history'),
 
   // Find in page
   findInPage: (text: string) => ipcRenderer.send('find-in-page', text),
@@ -44,6 +47,7 @@ contextBridge.exposeInMainWorld('astra', {
   onSuggestions: (cb: Function) => ipcRenderer.on('suggestions-result', (_e: any, d: any) => cb(d)),
   onBookmarkStatus: (cb: Function) => ipcRenderer.on('bookmark-status', (_e: any, s: boolean) => cb(s)),
   onBookmarksResult: (cb: Function) => ipcRenderer.on('bookmarks-result', (_e: any, d: any) => cb(d)),
+  onHistoryResult: (cb: Function) => ipcRenderer.on('history-result', (_e: any, d: any) => cb(d)),
   onDownloadUpdated: (cb: Function) => ipcRenderer.on('download-updated', (_e: any, d: any) => cb(d)),
   onFindResult: (cb: Function) => ipcRenderer.on('find-result', (_e: any, d: any) => cb(d)),
   onShowFindBar: (cb: Function) => ipcRenderer.on('show-find-bar', () => cb()),

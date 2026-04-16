@@ -101,6 +101,10 @@ function createWindow(): void {
   ipcMain.on(IPC.CLOSE_TAB, (_e, tabId: string) => tabManager.closeTab(tabId));
   ipcMain.on(IPC.SWITCH_TAB, (_e, tabId: string) => tabManager.switchToTab(tabId));
 
+  ipcMain.on(IPC.REORDER_TABS, (_e, data: { oldIndex: number; newIndex: number }) => {
+    tabManager.reorderTabs(data.oldIndex, data.newIndex);
+  });
+
   // Pin/Unpin
   ipcMain.on(IPC.PIN_TAB, (_e, tabId: string) => tabManager.pinTab(tabId));
   ipcMain.on(IPC.UNPIN_TAB, (_e, tabId: string) => tabManager.unpinTab(tabId));
@@ -108,6 +112,16 @@ function createWindow(): void {
   // Find in page
   ipcMain.on(IPC.FIND_IN_PAGE, (_e, text: string) => tabManager.findInPage(text));
   ipcMain.on(IPC.FIND_STOP, () => tabManager.stopFind());
+
+  // History
+  ipcMain.on(IPC.GET_HISTORY, () => {
+    sidebarView.webContents.send(IPC.HISTORY_RESULT, database.getFullHistory());
+  });
+
+  ipcMain.on(IPC.CLEAR_HISTORY, () => {
+    database.clearHistory();
+    sidebarView.webContents.send(IPC.HISTORY_RESULT, []);
+  });
 
   // Suggestions
   ipcMain.on(IPC.SEARCH_SUGGESTIONS, (_e, query: string) => {

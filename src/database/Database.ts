@@ -24,6 +24,8 @@ export class AppDatabase {
   private readonly stmtSaveSession: Database.Statement;
   private readonly stmtClearSession: Database.Statement;
   private readonly stmtGetSession: Database.Statement;
+  private readonly stmtGetFullHistory: Database.Statement;
+  private readonly stmtClearHistory: Database.Statement;
 
   constructor() {
     const dbPath = path.join(app.getPath('userData'), 'astra.db');
@@ -66,6 +68,8 @@ export class AppDatabase {
 
     this.stmtClearSession = this.db.prepare(`DELETE FROM session`);
     this.stmtGetSession = this.db.prepare(`SELECT * FROM session ORDER BY position ASC`);
+    this.stmtGetFullHistory = this.db.prepare(`SELECT * FROM history ORDER BY last_visited_at DESC LIMIT 200`);
+    this.stmtClearHistory = this.db.prepare(`DELETE FROM history`);
 
     console.log('[Astra] 💾 Database initialized:', dbPath);
   }
@@ -85,6 +89,14 @@ export class AppDatabase {
   searchHistory(query: string, limit = 10): HistoryEntry[] {
     const p = `%${query}%`;
     return this.stmtSearchHistory.all(p, p, limit) as HistoryEntry[];
+  }
+
+  getFullHistory(): HistoryEntry[] {
+    return this.stmtGetFullHistory.all() as HistoryEntry[];
+  }
+
+  clearHistory(): void {
+    this.stmtClearHistory.run();
   }
 
   // Bookmarks

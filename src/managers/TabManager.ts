@@ -207,6 +207,17 @@ export class TabManager {
     this.scheduleSend();
   }
 
+  reorderTabs(oldIndex: number, newIndex: number): void {
+    if (oldIndex < 0 || oldIndex >= this.tabs.length) return;
+    if (newIndex < 0 || newIndex >= this.tabs.length) return;
+    if (oldIndex === newIndex) return;
+
+    const [tab] = this.tabs.splice(oldIndex, 1);
+    this.tabs.splice(newIndex, 0, tab);
+
+    this.scheduleSend();
+  }
+
   // --------------------------------------------------
   // Zoom
   // --------------------------------------------------

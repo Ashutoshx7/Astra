@@ -17,10 +17,13 @@ declare global {
       requestTabs: () => void;
       pinTab: (tabId: string) => void;
       unpinTab: (tabId: string) => void;
+      reorderTabs: (oldIndex: number, newIndex: number) => void;
       searchSuggestions: (query: string) => void;
       addBookmark: (url: string, title: string) => void;
       removeBookmark: (url: string) => void;
       getBookmarks: () => void;
+      getHistory: () => void;
+      clearHistory: () => void;
       findInPage: (text: string) => void;
       stopFind: () => void;
       onTabsUpdated: (cb: (data: any) => void) => void;
@@ -29,6 +32,7 @@ declare global {
       onSuggestions: (cb: (s: UrlSuggestion[]) => void) => void;
       onBookmarkStatus: (cb: (b: boolean) => void) => void;
       onBookmarksResult: (cb: (b: Bookmark[]) => void) => void;
+      onHistoryResult: (cb: (b: HistoryEntry[]) => void) => void;
       onDownloadUpdated: (cb: (d: DownloadItem) => void) => void;
       onFindResult: (cb: (r: FindResult | null) => void) => void;
       onShowFindBar: (cb: () => void) => void;
@@ -50,65 +54,61 @@ interface Tab {
 
 interface UrlSuggestion { url: string; title: string; type: 'history' | 'bookmark'; }
 interface Bookmark { id: number; url: string; title: string; createdAt: number; }
+interface HistoryEntry { id: number; url: string; title: string; visitCount: number; lastVisitedAt: number; }
 interface DownloadItem { id: string; filename: string; url: string; totalBytes: number; receivedBytes: number; state: string; }
 interface FindResult { activeMatchOrdinal: number; matches: number; }
 
+type PanelMode = 'tabs' | 'bookmarks' | 'history' | 'settings';
+
 // --------------------------------------------------
-// Favicon — memoized to prevent re-renders when parent state changes
+// Favicon — memoized
 // --------------------------------------------------
 
 const Favicon = React.memo<{ src: string; isLoading: boolean }>(({ src, isLoading }) => {
   const [imgError, setImgError] = useState(false);
-
-  // Reset error state when favicon URL changes
   useEffect(() => { setImgError(false); }, [src]);
 
   if (isLoading) return <span className="spinner">⟳</span>;
-  if (src.startsWith('http') && !imgError) {
+  if (src && src.startsWith('http') && !imgError) {
     return <img src={src} className="favicon-img" onError={() => setImgError(true)} alt="" loading="lazy" />;
   }
   return <span>{src || '🌐'}</span>;
 });
-
 Favicon.displayName = 'Favicon';
 
 // --------------------------------------------------
-// TabItem — memoized to prevent full list re-render
+// TabItem — memoized with Drag & Drop support
 // --------------------------------------------------
 
 const TabItem = React.memo<{
   tab: Tab;
   isActive: boolean;
+  index: number;
   onSwitch: (id: string) => void;
   onPin: (id: string) => void;
   onClose: (id: string) => void;
-}>(({ tab, isActive, onSwitch, onPin, onClose }) => (
+  onDragStart: (e: React.DragEvent, index: number) => void;
+  onDragOver: (e: React.DragEvent, index: number) => void;
+  onDrop: (e: React.DragEvent, index: number) => void;
+}>(({ tab, isActive, index, onSwitch, onPin, onClose, onDragStart, onDragOver, onDrop }) => (
   <div
     className={`tab ${isActive ? 'active' : ''}`}
+    draggable
+    onDragStart={(e) => onDragStart(e, index)}
+    onDragOver={(e) => onDragOver(e, index)}
+    onDrop={(e) => onDrop(e, index)}
     onClick={() => onSwitch(tab.id)}
   >
     <span className="tab-favicon">
       <Favicon src={tab.favicon} isLoading={tab.isLoading} />
     </span>
-    <span className="tab-title">{tab.title}</span>
+    <span className="tab-title" title={tab.title}>{tab.title}</span>
     <div className="tab-actions">
-      <button
-        className="tab-pin"
-        onClick={(e) => { e.stopPropagation(); onPin(tab.id); }}
-        title="Pin tab"
-      >
-        📌
-      </button>
-      <button
-        className="tab-close"
-        onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
-      >
-        ×
-      </button>
+      <button className="tab-pin" onClick={(e) => { e.stopPropagation(); onPin(tab.id); }} title="Pin tab">📌</button>
+      <button className="tab-close" onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}>×</button>
     </div>
   </div>
 ));
-
 TabItem.displayName = 'TabItem';
 
 // --------------------------------------------------
@@ -118,13 +118,21 @@ TabItem.displayName = 'TabItem';
 const PinnedTab = React.memo<{
   tab: Tab;
   isActive: boolean;
+  index: number;
   onSwitch: (id: string) => void;
   onUnpin: (id: string) => void;
-}>(({ tab, isActive, onSwitch, onUnpin }) => (
+  onDragStart: (e: React.DragEvent, index: number) => void;
+  onDragOver: (e: React.DragEvent, index: number) => void;
+  onDrop: (e: React.DragEvent, index: number) => void;
+}>(({ tab, isActive, index, onSwitch, onUnpin, onDragStart, onDragOver, onDrop }) => (
   <div
     className={`tab pinned ${isActive ? 'active' : ''}`}
+    draggable
+    onDragStart={(e) => onDragStart(e, index)}
+    onDragOver={(e) => onDragOver(e, index)}
+    onDrop={(e) => onDrop(e, index)}
     onClick={() => onSwitch(tab.id)}
-    onContextMenu={() => onUnpin(tab.id)}
+    onContextMenu={(e) => { e.preventDefault(); onUnpin(tab.id); }}
     title={`${tab.title} (right-click to unpin)`}
   >
     <span className="tab-favicon">
@@ -132,7 +140,6 @@ const PinnedTab = React.memo<{
     </span>
   </div>
 ));
-
 PinnedTab.displayName = 'PinnedTab';
 
 // --------------------------------------------------
@@ -147,8 +154,9 @@ const App: React.FC = () => {
   const [suggestions, setSuggestions] = useState<UrlSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
-  const [showBookmarks, setShowBookmarks] = useState(false);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [panelMode, setPanelMode] = useState<PanelMode>('tabs');
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showFindBar, setShowFindBar] = useState(false);
   const [findText, setFindText] = useState('');
@@ -157,9 +165,10 @@ const App: React.FC = () => {
   const urlInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draggedIndex = useRef<number | null>(null);
 
   // --------------------------------------------------
-  // Stable callback refs (prevent child re-renders)
+  // Stable callback refs
   // --------------------------------------------------
 
   const switchTab = useCallback((id: string) => window.astra.switchTab(id), []);
@@ -167,8 +176,25 @@ const App: React.FC = () => {
   const unpinTab = useCallback((id: string) => window.astra.unpinTab(id), []);
   const closeTab = useCallback((id: string) => window.astra.closeTab(id), []);
 
+  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+    draggedIndex.current = index;
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDrop = useCallback((_e: React.DragEvent, dropIndex: number) => {
+    if (draggedIndex.current !== null && draggedIndex.current !== dropIndex) {
+      window.astra.reorderTabs(draggedIndex.current, dropIndex);
+    }
+    draggedIndex.current = null;
+  }, []);
+
   // --------------------------------------------------
-  // IPC Listeners — run once
+  // IPC Listeners
   // --------------------------------------------------
 
   useEffect(() => {
@@ -182,6 +208,7 @@ const App: React.FC = () => {
     window.astra.onSuggestions((r) => { setSuggestions(r); setShowSuggestions(r.length > 0); });
     window.astra.onBookmarkStatus((s) => setIsBookmarked(s));
     window.astra.onBookmarksResult((r) => setBookmarks(r));
+    window.astra.onHistoryResult((r) => setHistory(r));
     window.astra.onZoomChanged((z) => setZoomLevel(z));
 
     window.astra.onShowFindBar(() => {
@@ -240,13 +267,19 @@ const App: React.FC = () => {
     else window.astra.addBookmark(tab.url, tab.title);
   }, [tabs, activeTabId, isBookmarked]);
 
+  const setMode = (mode: PanelMode) => {
+    if (mode === 'bookmarks') window.astra.getBookmarks();
+    if (mode === 'history') window.astra.getHistory();
+    setPanelMode(mode);
+  };
+
   // --------------------------------------------------
-  // Memoized derived state (avoid recomputing on every render)
+  // Memoized derived state
   // --------------------------------------------------
 
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId), [tabs, activeTabId]);
-  const pinnedTabs = useMemo(() => tabs.filter(t => t.isPinned), [tabs]);
-  const unpinnedTabs = useMemo(() => tabs.filter(t => !t.isPinned), [tabs]);
+  const pinnedTabs = useMemo(() => tabs.map((t, i) => ({ ...t, originalIndex: i })).filter(t => t.isPinned), [tabs]);
+  const unpinnedTabs = useMemo(() => tabs.map((t, i) => ({ ...t, originalIndex: i })).filter(t => !t.isPinned), [tabs]);
   const activeDownloads = useMemo(() => downloads.filter(d => d.state === 'progressing'), [downloads]);
 
   return (
@@ -323,20 +356,87 @@ const App: React.FC = () => {
       {/* Loading Bar */}
       {activeTab?.isLoading && <div className="loading-bar"><div className="loading-bar-progress" /></div>}
 
-      {/* Pinned Tabs */}
-      {pinnedTabs.length > 0 && (
-        <div className="pinned-tabs">
-          {pinnedTabs.map(tab => (
-            <PinnedTab key={tab.id} tab={tab} isActive={tab.id === activeTabId} onSwitch={switchTab} onUnpin={unpinTab} />
-          ))}
-        </div>
-      )}
+      {/* Mode Selectors */}
+      <div className="sidebar-modes">
+        <button className={`mode-btn ${panelMode === 'tabs' ? 'active' : ''}`} onClick={() => setPanelMode('tabs')} title="Tabs">📁</button>
+        <button className={`mode-btn ${panelMode === 'history' ? 'active' : ''}`} onClick={() => setMode('history')} title="History">🕐</button>
+        <button className={`mode-btn ${panelMode === 'bookmarks' ? 'active' : ''}`} onClick={() => setMode('bookmarks')} title="Bookmarks">⭐</button>
+        <button className={`mode-btn ${panelMode === 'settings' ? 'active' : ''}`} onClick={() => setPanelMode('settings')} title="Settings">⚙</button>
+      </div>
 
-      {/* Tab List */}
-      <div className="tab-list">
-        {unpinnedTabs.map(tab => (
-          <TabItem key={tab.id} tab={tab} isActive={tab.id === activeTabId} onSwitch={switchTab} onPin={pinTab} onClose={closeTab} />
-        ))}
+      {/* Panel Content */}
+      <div className="panel-container">
+        {panelMode === 'tabs' && (
+          <>
+            {pinnedTabs.length > 0 && (
+              <div className="pinned-tabs">
+                {pinnedTabs.map(t => (
+                  <PinnedTab key={t.id} tab={t} index={t.originalIndex} isActive={t.id === activeTabId} onSwitch={switchTab} onUnpin={unpinTab} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} />
+                ))}
+              </div>
+            )}
+            <div className="tab-list">
+              {unpinnedTabs.map(t => (
+                <TabItem key={t.id} tab={t} index={t.originalIndex} isActive={t.id === activeTabId} onSwitch={switchTab} onPin={pinTab} onClose={closeTab} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {panelMode === 'bookmarks' && (
+          <div className="list-panel">
+            <h3>Bookmarks</h3>
+            {bookmarks.length === 0 ? <p className="empty-msg">No bookmarks.</p> : bookmarks.map(b => (
+              <div key={b.id} className="list-item" onClick={() => { window.astra.navigate(b.url); setPanelMode('tabs'); }}>
+                <span>⭐</span>
+                <div className="list-item-text">
+                  <div className="list-item-title">{b.title || b.url}</div>
+                  <div className="list-item-url">{b.url}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {panelMode === 'history' && (
+          <div className="list-panel">
+            <div className="panel-header">
+              <h3>History</h3>
+              <button className="clear-btn" onClick={() => window.astra.clearHistory()}>Clear</button>
+            </div>
+            {history.length === 0 ? <p className="empty-msg">History is empty.</p> : history.map(h => (
+              <div key={h.id} className="list-item" onClick={() => { window.astra.navigate(h.url); setPanelMode('tabs'); }}>
+                <span>🕐</span>
+                <div className="list-item-text">
+                  <div className="list-item-title">{h.title || h.url}</div>
+                  <div className="list-item-url">{h.url}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {panelMode === 'settings' && (
+          <div className="list-panel settings">
+            <h3>Settings</h3>
+            <div className="setting-group">
+              <label>Search Engine</label>
+              <select defaultValue="google">
+                <option value="google">Google</option>
+                <option value="duckduckgo">DuckDuckGo</option>
+                <option value="bing">Bing</option>
+              </select>
+            </div>
+            <div className="setting-group">
+              <label>Appearance</label>
+              <div className="setting-info">Theme: Astra Dark (Default)</div>
+            </div>
+            <div className="setting-group">
+              <label>Ad Blocker</label>
+              <div className="setting-info">Status: Enabled 🛡️</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Downloads */}
@@ -353,31 +453,6 @@ const App: React.FC = () => {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Bookmarks */}
-      <div className="sidebar-actions">
-        <button className="action-btn" onClick={() => { if (!showBookmarks) window.astra.getBookmarks(); setShowBookmarks(!showBookmarks); }}>
-          {showBookmarks ? '✕ Close' : '⭐ Bookmarks'}
-        </button>
-      </div>
-
-      {showBookmarks && (
-        <div className="bookmarks-panel">
-          {bookmarks.length === 0 ? (
-            <div className="bookmarks-empty">No bookmarks yet. Press Ctrl+D to add one!</div>
-          ) : (
-            bookmarks.map(b => (
-              <div key={b.id} className="bookmark-item" onClick={() => { window.astra.navigate(b.url); setShowBookmarks(false); }}>
-                <span className="bookmark-item-icon">⭐</span>
-                <div className="bookmark-item-text">
-                  <span className="bookmark-item-title">{b.title || b.url}</span>
-                  <span className="bookmark-item-url">{b.url}</span>
-                </div>
-              </div>
-            ))
-          )}
         </div>
       )}
 
