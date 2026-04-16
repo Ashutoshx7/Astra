@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // --------------------------------------------------
 // Type declarations
@@ -54,18 +54,86 @@ interface DownloadItem { id: string; filename: string; url: string; totalBytes: 
 interface FindResult { activeMatchOrdinal: number; matches: number; }
 
 // --------------------------------------------------
-// Favicon component — shows real favicon or emoji fallback
+// Favicon — memoized to prevent re-renders when parent state changes
 // --------------------------------------------------
 
-const Favicon: React.FC<{ src: string; isLoading: boolean }> = ({ src, isLoading }) => {
+const Favicon = React.memo<{ src: string; isLoading: boolean }>(({ src, isLoading }) => {
   const [imgError, setImgError] = useState(false);
+
+  // Reset error state when favicon URL changes
+  useEffect(() => { setImgError(false); }, [src]);
 
   if (isLoading) return <span className="spinner">⟳</span>;
   if (src.startsWith('http') && !imgError) {
-    return <img src={src} className="favicon-img" onError={() => setImgError(true)} alt="" />;
+    return <img src={src} className="favicon-img" onError={() => setImgError(true)} alt="" loading="lazy" />;
   }
   return <span>{src || '🌐'}</span>;
-};
+});
+
+Favicon.displayName = 'Favicon';
+
+// --------------------------------------------------
+// TabItem — memoized to prevent full list re-render
+// --------------------------------------------------
+
+const TabItem = React.memo<{
+  tab: Tab;
+  isActive: boolean;
+  onSwitch: (id: string) => void;
+  onPin: (id: string) => void;
+  onClose: (id: string) => void;
+}>(({ tab, isActive, onSwitch, onPin, onClose }) => (
+  <div
+    className={`tab ${isActive ? 'active' : ''}`}
+    onClick={() => onSwitch(tab.id)}
+  >
+    <span className="tab-favicon">
+      <Favicon src={tab.favicon} isLoading={tab.isLoading} />
+    </span>
+    <span className="tab-title">{tab.title}</span>
+    <div className="tab-actions">
+      <button
+        className="tab-pin"
+        onClick={(e) => { e.stopPropagation(); onPin(tab.id); }}
+        title="Pin tab"
+      >
+        📌
+      </button>
+      <button
+        className="tab-close"
+        onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
+      >
+        ×
+      </button>
+    </div>
+  </div>
+));
+
+TabItem.displayName = 'TabItem';
+
+// --------------------------------------------------
+// PinnedTab — memoized
+// --------------------------------------------------
+
+const PinnedTab = React.memo<{
+  tab: Tab;
+  isActive: boolean;
+  onSwitch: (id: string) => void;
+  onUnpin: (id: string) => void;
+}>(({ tab, isActive, onSwitch, onUnpin }) => (
+  <div
+    className={`tab pinned ${isActive ? 'active' : ''}`}
+    onClick={() => onSwitch(tab.id)}
+    onContextMenu={() => onUnpin(tab.id)}
+    title={`${tab.title} (right-click to unpin)`}
+  >
+    <span className="tab-favicon">
+      <Favicon src={tab.favicon} isLoading={tab.isLoading} />
+    </span>
+  </div>
+));
+
+PinnedTab.displayName = 'PinnedTab';
 
 // --------------------------------------------------
 // App Component
@@ -82,8 +150,6 @@ const App: React.FC = () => {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [zoomLevel, setZoomLevel] = useState(100);
-
-  // Find in page state
   const [showFindBar, setShowFindBar] = useState(false);
   const [findText, setFindText] = useState('');
   const [findResult, setFindResult] = useState<FindResult | null>(null);
@@ -93,7 +159,16 @@ const App: React.FC = () => {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --------------------------------------------------
-  // IPC Listeners
+  // Stable callback refs (prevent child re-renders)
+  // --------------------------------------------------
+
+  const switchTab = useCallback((id: string) => window.astra.switchTab(id), []);
+  const pinTab = useCallback((id: string) => window.astra.pinTab(id), []);
+  const unpinTab = useCallback((id: string) => window.astra.unpinTab(id), []);
+  const closeTab = useCallback((id: string) => window.astra.closeTab(id), []);
+
+  // --------------------------------------------------
+  // IPC Listeners — run once
   // --------------------------------------------------
 
   useEffect(() => {
@@ -115,13 +190,8 @@ const App: React.FC = () => {
     });
 
     window.astra.onFindResult((r) => {
-      if (r === null) {
-        setShowFindBar(false);
-        setFindText('');
-        setFindResult(null);
-      } else {
-        setFindResult(r);
-      }
+      if (r === null) { setShowFindBar(false); setFindText(''); setFindResult(null); }
+      else setFindResult(r);
     });
 
     window.astra.onDownloadUpdated((dl) => {
@@ -139,12 +209,12 @@ const App: React.FC = () => {
   // Handlers
   // --------------------------------------------------
 
-  const handleNavigate = (e: React.FormEvent) => {
+  const handleNavigate = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     window.astra.navigate(urlInput);
     setShowSuggestions(false);
     urlInputRef.current?.blur();
-  };
+  }, [urlInput]);
 
   const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -156,29 +226,28 @@ const App: React.FC = () => {
     }, 300);
   }, []);
 
-  const handleFind = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (findText) window.astra.findInPage(findText);
-  };
-
-  const closeFindBar = () => {
+  const closeFindBar = useCallback(() => {
     setShowFindBar(false);
     setFindText('');
     setFindResult(null);
     window.astra.stopFind();
-  };
+  }, []);
 
-  const toggleBookmark = () => {
+  const toggleBookmark = useCallback(() => {
     const tab = tabs.find(t => t.id === activeTabId);
     if (!tab) return;
     if (isBookmarked) window.astra.removeBookmark(tab.url);
     else window.astra.addBookmark(tab.url, tab.title);
-  };
+  }, [tabs, activeTabId, isBookmarked]);
 
-  const activeTab = tabs.find(t => t.id === activeTabId);
-  const pinnedTabs = tabs.filter(t => t.isPinned);
-  const unpinnedTabs = tabs.filter(t => !t.isPinned);
-  const activeDownloads = downloads.filter(d => d.state === 'progressing');
+  // --------------------------------------------------
+  // Memoized derived state (avoid recomputing on every render)
+  // --------------------------------------------------
+
+  const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId), [tabs, activeTabId]);
+  const pinnedTabs = useMemo(() => tabs.filter(t => t.isPinned), [tabs]);
+  const unpinnedTabs = useMemo(() => tabs.filter(t => !t.isPinned), [tabs]);
+  const activeDownloads = useMemo(() => downloads.filter(d => d.state === 'progressing'), [downloads]);
 
   return (
     <div className="sidebar">
@@ -188,9 +257,7 @@ const App: React.FC = () => {
           <button className="nav-btn" title="Back" onClick={() => window.astra.goBack()}>←</button>
           <button className="nav-btn" title="Forward" onClick={() => window.astra.goForward()}>→</button>
           <button className="nav-btn" title="Refresh" onClick={() => window.astra.refresh()}>↻</button>
-          {zoomLevel !== 100 && (
-            <span className="zoom-indicator">{zoomLevel}%</span>
-          )}
+          {zoomLevel !== 100 && <span className="zoom-indicator">{zoomLevel}%</span>}
         </div>
         <form onSubmit={handleNavigate} className="url-form">
           <div className="url-input-wrapper">
@@ -237,7 +304,7 @@ const App: React.FC = () => {
       {/* Find Bar */}
       {showFindBar && (
         <div className="find-bar">
-          <form onSubmit={handleFind} className="find-form">
+          <form onSubmit={(e) => { e.preventDefault(); if (findText) window.astra.findInPage(findText); }} className="find-form">
             <input
               ref={findInputRef}
               className="find-input"
@@ -247,34 +314,20 @@ const App: React.FC = () => {
               placeholder="Find in page..."
               spellCheck={false}
             />
-            {findResult && (
-              <span className="find-count">{findResult.activeMatchOrdinal}/{findResult.matches}</span>
-            )}
+            {findResult && <span className="find-count">{findResult.activeMatchOrdinal}/{findResult.matches}</span>}
             <button type="button" className="find-close" onClick={closeFindBar}>✕</button>
           </form>
         </div>
       )}
 
       {/* Loading Bar */}
-      {activeTab?.isLoading && (
-        <div className="loading-bar"><div className="loading-bar-progress" /></div>
-      )}
+      {activeTab?.isLoading && <div className="loading-bar"><div className="loading-bar-progress" /></div>}
 
       {/* Pinned Tabs */}
       {pinnedTabs.length > 0 && (
         <div className="pinned-tabs">
           {pinnedTabs.map(tab => (
-            <div
-              key={tab.id}
-              className={`tab pinned ${tab.id === activeTabId ? 'active' : ''}`}
-              onClick={() => window.astra.switchTab(tab.id)}
-              onContextMenu={() => window.astra.unpinTab(tab.id)}
-              title={`${tab.title} (right-click to unpin)`}
-            >
-              <span className="tab-favicon">
-                <Favicon src={tab.favicon} isLoading={tab.isLoading} />
-              </span>
-            </div>
+            <PinnedTab key={tab.id} tab={tab} isActive={tab.id === activeTabId} onSwitch={switchTab} onUnpin={unpinTab} />
           ))}
         </div>
       )}
@@ -282,31 +335,7 @@ const App: React.FC = () => {
       {/* Tab List */}
       <div className="tab-list">
         {unpinnedTabs.map(tab => (
-          <div
-            key={tab.id}
-            className={`tab ${tab.id === activeTabId ? 'active' : ''}`}
-            onClick={() => window.astra.switchTab(tab.id)}
-          >
-            <span className="tab-favicon">
-              <Favicon src={tab.favicon} isLoading={tab.isLoading} />
-            </span>
-            <span className="tab-title">{tab.title}</span>
-            <div className="tab-actions">
-              <button
-                className="tab-pin"
-                onClick={(e) => { e.stopPropagation(); window.astra.pinTab(tab.id); }}
-                title="Pin tab"
-              >
-                📌
-              </button>
-              <button
-                className="tab-close"
-                onClick={(e) => { e.stopPropagation(); window.astra.closeTab(tab.id); }}
-              >
-                ×
-              </button>
-            </div>
-          </div>
+          <TabItem key={tab.id} tab={tab} isActive={tab.id === activeTabId} onSwitch={switchTab} onPin={pinTab} onClose={closeTab} />
         ))}
       </div>
 
@@ -327,7 +356,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Bookmarks panel */}
+      {/* Bookmarks */}
       <div className="sidebar-actions">
         <button className="action-btn" onClick={() => { if (!showBookmarks) window.astra.getBookmarks(); setShowBookmarks(!showBookmarks); }}>
           {showBookmarks ? '✕ Close' : '⭐ Bookmarks'}

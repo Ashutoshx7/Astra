@@ -1,6 +1,10 @@
 /* === RESET === */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* === GPU PERFORMANCE HINTS === */
+.loading-bar-progress, .spinner { will-change: transform; }
+.tab-list { contain: content; } /* Layout isolation — prevents cascading reflows */
+
 /* === SIDEBAR === */
 .sidebar {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;

@@ -1,5 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+/**
+ * Preload bridge — exposes a minimal, typed API to the renderer.
+ *
+ * Performance note: Each `on*` method stores the listener reference
+ * and uses `ipcRenderer.on()` which persists for the lifetime of the
+ * renderer process. Since the sidebar is a single long-lived view,
+ * this is correct — no cleanup needed.
+ *
+ * Security: Only specific channels are exposed. No raw IPC access.
+ */
 contextBridge.exposeInMainWorld('astra', {
   // Navigation
   navigate: (url: string) => ipcRenderer.send('navigate', url),
