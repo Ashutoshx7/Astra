@@ -1,13 +1,7 @@
 /**
  * Astra Browser — Main Process Entry Point
  *
- * Orchestrates:
- *   - AdBlocker          → Network-level ad/tracker blocking
- *   - AppDatabase        → SQLite for history + bookmarks
- *   - TabManager         → Tab lifecycle (create/switch/close)
- *   - ShortcutManager    → Keyboard shortcuts
- *   - DownloadManager    → File download tracking (via TabManager)
- *   - IPC Handlers       → Bridge between sidebar and managers
+ * Orchestrates: AdBlocker, AppDatabase, TabManager, ShortcutManager
  */
 
 import { app, BaseWindow, WebContentsView, ipcMain } from 'electron';
@@ -23,16 +17,18 @@ import { parseUrl } from './utils/url';
 
 require('events').defaultMaxListeners = CONFIG.MAX_LISTENERS;
 
-if (started) {
-  app.quit();
-}
+if (started) app.quit();
+
+let mainWindow: BaseWindow | null = null;
+let tabManager: TabManager;
+let database: AppDatabase;
 
 // --------------------------------------------------
 // Window creation
 // --------------------------------------------------
 
-function createWindow(database: AppDatabase): void {
-  const mainWindow = new BaseWindow({
+function createWindow(): void {
+  mainWindow = new BaseWindow({
     width: CONFIG.WINDOW.WIDTH,
     height: CONFIG.WINDOW.HEIGHT,
     minWidth: CONFIG.WINDOW.MIN_WIDTH,
@@ -66,18 +62,26 @@ function createWindow(database: AppDatabase): void {
   }
 
   // --------------------------------------------------
-  // Initialize managers
+  // Managers
   // --------------------------------------------------
 
-  const tabManager = new TabManager(mainWindow, sidebarView, database);
-  const shortcutManager = new ShortcutManager(tabManager, sidebarView, database);
+  tabManager = new TabManager(mainWindow, sidebarView, database);
+  const shortcutManager = new ShortcutManager(tabManager, sidebarView, database, () => mainWindow);
 
-  // Create the first tab (new tab page)
-  const firstTab = tabManager.createTab();
-  tabManager.switchToTab(firstTab.id);
+  // Session restore — try to restore previous tabs, fallback to new tab
+  const restored = tabManager.restoreSession();
+  if (!restored) {
+    const firstTab = tabManager.createTab();
+    tabManager.switchToTab(firstTab.id);
+  }
 
   shortcutManager.initialize();
   mainWindow.on('resize', () => tabManager.layout());
+
+  // Save session before window closes
+  mainWindow.on('close', () => {
+    tabManager.saveSession();
+  });
 
   // --------------------------------------------------
   // IPC Handlers
@@ -97,10 +101,17 @@ function createWindow(database: AppDatabase): void {
   ipcMain.on(IPC.CLOSE_TAB, (_e, tabId: string) => tabManager.closeTab(tabId));
   ipcMain.on(IPC.SWITCH_TAB, (_e, tabId: string) => tabManager.switchToTab(tabId));
 
-  // URL suggestions (debounced on the renderer side)
+  // Pin/Unpin
+  ipcMain.on(IPC.PIN_TAB, (_e, tabId: string) => tabManager.pinTab(tabId));
+  ipcMain.on(IPC.UNPIN_TAB, (_e, tabId: string) => tabManager.unpinTab(tabId));
+
+  // Find in page
+  ipcMain.on(IPC.FIND_IN_PAGE, (_e, text: string) => tabManager.findInPage(text));
+  ipcMain.on(IPC.FIND_STOP, () => tabManager.stopFind());
+
+  // Suggestions
   ipcMain.on(IPC.SEARCH_SUGGESTIONS, (_e, query: string) => {
-    const suggestions = database.getSuggestions(query);
-    sidebarView.webContents.send(IPC.SUGGESTIONS_RESULT, suggestions);
+    sidebarView.webContents.send(IPC.SUGGESTIONS_RESULT, database.getSuggestions(query));
   });
 
   // Bookmarks
@@ -115,8 +126,7 @@ function createWindow(database: AppDatabase): void {
   });
 
   ipcMain.on(IPC.GET_BOOKMARKS, () => {
-    const bookmarks = database.getBookmarks();
-    sidebarView.webContents.send(IPC.BOOKMARKS_RESULT, bookmarks);
+    sidebarView.webContents.send(IPC.BOOKMARKS_RESULT, database.getBookmarks());
   });
 
   // DevTools in dev mode only
@@ -133,11 +143,13 @@ app.on('ready', async () => {
   const adBlocker = new AdBlocker();
   await adBlocker.initialize();
 
-  const database = new AppDatabase();
-  createWindow(database);
+  database = new AppDatabase();
+  createWindow();
 
-  // Clean up on quit
-  app.on('before-quit', () => database.close());
+  app.on('before-quit', () => {
+    tabManager?.saveSession();
+    database?.close();
+  });
 });
 
 app.on('window-all-closed', () => {
@@ -145,8 +157,5 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (BaseWindow.getAllWindows().length === 0) {
-    const database = new AppDatabase();
-    createWindow(database);
-  }
+  if (BaseWindow.getAllWindows().length === 0) createWindow();
 });

@@ -4,7 +4,6 @@ import { WebContentsView } from 'electron';
 // Tab Types
 // --------------------------------------------------
 
-/** A browser tab managed by the main process */
 export interface ManagedTab {
   readonly id: string;
   readonly view: WebContentsView;
@@ -13,9 +12,10 @@ export interface ManagedTab {
   favicon: string;
   isLoading: boolean;
   isSecure: boolean;
+  isPinned: boolean;
+  zoomLevel: number;
 }
 
-/** Serializable tab data (sent to sidebar via IPC) */
 export interface TabData {
   readonly id: string;
   title: string;
@@ -23,11 +23,21 @@ export interface TabData {
   favicon: string;
   isLoading: boolean;
   isSecure: boolean;
+  isPinned: boolean;
+  zoomLevel: number;
 }
 
 export interface TabsUpdatedPayload {
   tabs: TabData[];
   activeTabId: string | null;
+}
+
+/** Tab data saved to SQLite for session restore */
+export interface SessionTab {
+  url: string;
+  title: string;
+  isPinned: boolean;
+  position: number;
 }
 
 // --------------------------------------------------
@@ -58,10 +68,6 @@ export interface DownloadItem {
   state: 'progressing' | 'completed' | 'cancelled' | 'interrupted';
 }
 
-// --------------------------------------------------
-// URL Bar suggestions
-// --------------------------------------------------
-
 export interface UrlSuggestion {
   url: string;
   title: string;
@@ -69,7 +75,7 @@ export interface UrlSuggestion {
 }
 
 // --------------------------------------------------
-// IPC Channels (single source of truth)
+// IPC Channels
 // --------------------------------------------------
 
 export const IPC = {
@@ -86,6 +92,11 @@ export const IPC = {
   ADD_BOOKMARK: 'add-bookmark',
   REMOVE_BOOKMARK: 'remove-bookmark',
   GET_BOOKMARKS: 'get-bookmarks',
+  PIN_TAB: 'pin-tab',
+  UNPIN_TAB: 'unpin-tab',
+  FIND_IN_PAGE: 'find-in-page',
+  FIND_NEXT: 'find-next',
+  FIND_STOP: 'find-stop',
 
   // Main → Sidebar
   TABS_UPDATED: 'tabs-updated',
@@ -95,6 +106,9 @@ export const IPC = {
   BOOKMARKS_RESULT: 'bookmarks-result',
   BOOKMARK_STATUS: 'bookmark-status',
   DOWNLOAD_UPDATED: 'download-updated',
+  FIND_RESULT: 'find-result',
+  SHOW_FIND_BAR: 'show-find-bar',
+  ZOOM_CHANGED: 'zoom-changed',
 } as const;
 
 // --------------------------------------------------
@@ -109,6 +123,9 @@ export const CONFIG = {
   MAX_LISTENERS: 50,
   MAX_SUGGESTIONS: 6,
   HISTORY_DEBOUNCE_MS: 300,
+  ZOOM_STEP: 0.1,
+  ZOOM_MIN: 0.5,
+  ZOOM_MAX: 3.0,
   WINDOW: {
     WIDTH: 1200,
     HEIGHT: 800,
