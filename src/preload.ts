@@ -20,4 +20,7 @@ contextBridge.exposeInMainWorld('astra', {
   onUrlChanged: (callback) => {
     ipcRenderer.on('url-changed', (_event, url) => callback(url));
   },
+  onFocusUrlBar: (callback) => {
+    ipcRenderer.on('focus-url-bar', () => callback());
+  },
 });

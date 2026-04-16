@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -13,6 +13,7 @@ declare global {
       requestTabs: () => void;
       onTabsUpdated: (callback: (data: any) => void) => void;
       onUrlChanged: (callback: (url: string) => void) => void;
+      onFocusUrlBar: (callback: () => void) => void;
     };
   }
 }
@@ -28,6 +29,7 @@ const App: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [urlInput, setUrlInput] = useState('');
+  const urlInputRef = useRef<HTMLInputElement>(null);
 
   // Listen for tab updates from main process
   useEffect(() => {
@@ -38,6 +40,11 @@ const App: React.FC = () => {
 
     window.astra.onUrlChanged((url) => {
       setUrlInput(url);
+    });
+
+    window.astra.onFocusUrlBar(() => {
+      urlInputRef.current?.focus();
+      urlInputRef.current?.select();
     });
 
     // Ask main process for current tabs (they were created before React mounted)
@@ -60,6 +67,7 @@ const App: React.FC = () => {
         </div>
         <form onSubmit={handleNavigate} className="url-form">
           <input
+            ref={urlInputRef}
             className="url-input"
             type="text"
             value={urlInput}

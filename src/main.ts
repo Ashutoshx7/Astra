@@ -85,6 +85,12 @@ function createTab(url = 'https://duckduckgo.com'): ManagedTab {
   };
 
   tabs.push(tab);
+
+  // Attach keyboard shortcuts to this view
+  if ((global as any).__attachShortcuts) {
+    (global as any).__attachShortcuts(tab.view);
+  }
+
   return tab;
 }
 
@@ -263,6 +269,74 @@ const createWindow = () => {
   ipcMain.on('switch-tab', (_event, tabId: string) => {
     switchToTab(tabId);
   });
+
+  // =============================================
+  // KEYBOARD SHORTCUTS
+  // =============================================
+
+  function handleShortcut(event: Electron.Event, input: Electron.Input) {
+    if (input.type !== 'keyDown') return;
+
+    const ctrl = input.control || input.meta; // Ctrl on Linux/Win, Cmd on Mac
+
+    // Ctrl+T → New tab
+    if (ctrl && input.key === 't') {
+      event.preventDefault();
+      const newTab = createTab('https://duckduckgo.com');
+      switchToTab(newTab.id);
+    }
+
+    // Ctrl+W → Close current tab
+    if (ctrl && input.key === 'w') {
+      event.preventDefault();
+      if (activeTabId) closeTab(activeTabId);
+    }
+
+    // Ctrl+Tab → Next tab
+    if (ctrl && input.key === 'Tab' && !input.shift) {
+      event.preventDefault();
+      const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+      const nextIndex = (currentIndex + 1) % tabs.length;
+      switchToTab(tabs[nextIndex].id);
+    }
+
+    // Ctrl+Shift+Tab → Previous tab
+    if (ctrl && input.key === 'Tab' && input.shift) {
+      event.preventDefault();
+      const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+      const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      switchToTab(tabs[prevIndex].id);
+    }
+
+    // Ctrl+L → Focus URL bar
+    if (ctrl && input.key === 'l') {
+      event.preventDefault();
+      sidebarView.webContents.send('focus-url-bar');
+    }
+
+    // Ctrl+R or F5 → Refresh
+    if ((ctrl && input.key === 'r') || input.key === 'F5') {
+      event.preventDefault();
+      const tab = tabs.find(t => t.id === activeTabId);
+      if (tab) tab.view.webContents.reload();
+    }
+  }
+
+  // Listen for shortcuts on the sidebar
+  sidebarView.webContents.on('before-input-event', handleShortcut);
+
+  // Listen for shortcuts on ALL web views (existing + future)
+  function attachShortcutsToView(view: WebContentsView) {
+    view.webContents.on('before-input-event', handleShortcut);
+  }
+
+  // Attach to existing tabs
+  for (const tab of tabs) {
+    attachShortcutsToView(tab.view);
+  }
+
+  // Store the function so createTab can use it
+  (global as any).__attachShortcuts = attachShortcutsToView;
 
   // DevTools for debugging (remove later)
   sidebarView.webContents.openDevTools({ mode: 'detach' });
