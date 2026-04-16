@@ -20,6 +20,7 @@ export class AppDatabase {
   private readonly stmtGetBookmarks: Database.Statement;
   private readonly stmtIsBookmarked: Database.Statement;
   private readonly stmtSearchSuggestions: Database.Statement;
+  private readonly stmtFindHistory: Database.Statement; // Cached for recordVisit
   private readonly stmtSaveSession: Database.Statement;
   private readonly stmtClearSession: Database.Statement;
   private readonly stmtGetSession: Database.Statement;
@@ -57,6 +58,8 @@ export class AppDatabase {
       ORDER BY type ASC LIMIT ?
     `);
 
+    this.stmtFindHistory = this.db.prepare('SELECT id FROM history WHERE url = ?');
+
     this.stmtSaveSession = this.db.prepare(
       `INSERT INTO session (url, title, is_pinned, position) VALUES (?, ?, ?, ?)`,
     );
@@ -70,7 +73,7 @@ export class AppDatabase {
   // History
   recordVisit(url: string, title: string): void {
     if (url.startsWith('astra://') || url.startsWith('data:')) return;
-    const existing = this.db.prepare('SELECT id FROM history WHERE url = ?').get(url);
+    const existing = this.stmtFindHistory.get(url);
     const now = Date.now();
     if (existing) {
       this.stmtUpdateHistory.run(title, now, url);
