@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// Type declaration for the preload bridge
 declare global {
   interface Window {
     astra: {
@@ -11,7 +10,8 @@ declare global {
       newTab: (url?: string) => void;
       closeTab: (tabId: string) => void;
       switchTab: (tabId: string) => void;
-      onTabUpdate: (callback: (data: any) => void) => void;
+      requestTabs: () => void;
+      onTabsUpdated: (callback: (data: any) => void) => void;
       onUrlChanged: (callback: (url: string) => void) => void;
     };
   }
@@ -25,55 +25,28 @@ interface Tab {
 }
 
 const App: React.FC = () => {
-  const [tabs, setTabs] = useState<Tab[]>([
-    { id: '1', title: 'DuckDuckGo', url: 'https://duckduckgo.com', favicon: '🦆' },
-  ]);
-  const [activeTabId, setActiveTabId] = useState('1');
-  const [urlInput, setUrlInput] = useState('https://duckduckgo.com');
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string>('');
+  const [urlInput, setUrlInput] = useState('');
 
-  // Listen for updates from the main process
+  // Listen for tab updates from main process
   useEffect(() => {
-    window.astra.onTabUpdate((data) => {
-      setTabs(prev => prev.map(tab =>
-        tab.id === activeTabId
-          ? { ...tab, title: data.title, url: data.url }
-          : tab
-      ));
+    window.astra.onTabsUpdated((data) => {
+      setTabs(data.tabs);
+      setActiveTabId(data.activeTabId);
     });
 
     window.astra.onUrlChanged((url) => {
       setUrlInput(url);
     });
-  }, [activeTabId]);
 
-  // Navigate when user submits URL
+    // Ask main process for current tabs (they were created before React mounted)
+    window.astra.requestTabs();
+  }, []);
+
   const handleNavigate = (e: React.FormEvent) => {
     e.preventDefault();
     window.astra.navigate(urlInput);
-  };
-
-  const handleNewTab = () => {
-    const newTab: Tab = {
-      id: Date.now().toString(),
-      title: 'New Tab',
-      url: 'about:blank',
-      favicon: '🌐',
-    };
-    setTabs([...tabs, newTab]);
-    setActiveTabId(newTab.id);
-    setUrlInput('');
-  };
-
-  const handleCloseTab = (tabId: string) => {
-    const filtered = tabs.filter(t => t.id !== tabId);
-    if (filtered.length === 0) {
-      handleNewTab();
-      return;
-    }
-    setTabs(filtered);
-    if (activeTabId === tabId) {
-      setActiveTabId(filtered[filtered.length - 1].id);
-    }
   };
 
   return (
@@ -103,10 +76,7 @@ const App: React.FC = () => {
           <div
             key={tab.id}
             className={`tab ${tab.id === activeTabId ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTabId(tab.id);
-              setUrlInput(tab.url);
-            }}
+            onClick={() => window.astra.switchTab(tab.id)}
           >
             <span className="tab-favicon">{tab.favicon}</span>
             <span className="tab-title">{tab.title}</span>
@@ -114,7 +84,7 @@ const App: React.FC = () => {
               className="tab-close"
               onClick={(e) => {
                 e.stopPropagation();
-                handleCloseTab(tab.id);
+                window.astra.closeTab(tab.id);
               }}
             >
               ×
@@ -125,7 +95,7 @@ const App: React.FC = () => {
 
       {/* Footer */}
       <div className="sidebar-footer">
-        <button className="btn-new-tab" onClick={handleNewTab}>
+        <button className="btn-new-tab" onClick={() => window.astra.newTab()}>
           + New Tab
         </button>
       </div>

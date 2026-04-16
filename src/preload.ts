@@ -1,6 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose safe methods to the renderer (React sidebar)
 contextBridge.exposeInMainWorld('astra', {
   // Navigation
   navigate: (url) => ipcRenderer.send('navigate', url),
@@ -12,10 +11,11 @@ contextBridge.exposeInMainWorld('astra', {
   newTab: (url) => ipcRenderer.send('new-tab', url),
   closeTab: (tabId) => ipcRenderer.send('close-tab', tabId),
   switchTab: (tabId) => ipcRenderer.send('switch-tab', tabId),
+  requestTabs: () => ipcRenderer.send('request-tabs'),
 
   // Listen for events FROM main process
-  onTabUpdate: (callback) => {
-    ipcRenderer.on('tab-updated', (_event, data) => callback(data));
+  onTabsUpdated: (callback) => {
+    ipcRenderer.on('tabs-updated', (_event, data) => callback(data));
   },
   onUrlChanged: (callback) => {
     ipcRenderer.on('url-changed', (_event, url) => callback(url));

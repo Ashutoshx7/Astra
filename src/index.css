@@ -19,7 +19,7 @@
 }
 
 /* Make interactive elements clickable (not draggable) */
-button, input {
+button, input, .tab, .tab-list, .sidebar-footer {
   -webkit-app-region: no-drag;
 }
 
