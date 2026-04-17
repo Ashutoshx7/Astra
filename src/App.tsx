@@ -376,27 +376,14 @@ const App: React.FC = () => {
   const unpinnedTabs = useMemo(() => tabs.map((t, i) => ({ ...t, originalIndex: i })).filter(t => !t.isPinned), [tabs]);
   const activeDownloads = useMemo(() => downloads.filter(d => d.state === 'progressing'), [downloads]);
 
+  // Colors for space creation
+  const spaceColors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#ef4444', '#14b8a6'];
+  const spaceIcons = ['🏠', '💼', '🎮', '📚', '🎵', '🧪', '🌍', '🎨', '💡', '🔥', '🍕', '🚀'];
+
   return (
     <div className={sidebarClasses} onClick={() => setSpaceContextMenu(null)}>
-      {/* Pinned Tabs — Zen's favicon grid */}
-      {pinnedTabs.length > 0 && (
-        <div className="pinned-tabs">
-          {pinnedTabs.map(t => (
-            <PinnedTab key={t.id} tab={t} index={t.originalIndex} isActive={t.id === activeTabId} onSwitch={switchTab} onUnpin={unpinTab} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} />
-          ))}
-        </div>
-      )}
-
-      {/* Workspace Indicator — Zen's "🍕 Personal" section header */}
-      {spaces.length > 0 && (() => {
-        const active = spaces.find(s => s.id === activeSpaceId);
-        return active ? (
-          <div className="workspace-indicator">
-            <span className="workspace-indicator-icon">{active.icon}</span>
-            <span className="workspace-indicator-name">{active.name}</span>
-          </div>
-        ) : null;
-      })()}
+      {/* Title bar drag area */}
+      <div className="sidebar-drag-area" />
 
       {/* URL Bar */}
       <div className="url-bar">
