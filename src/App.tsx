@@ -435,6 +435,29 @@ const App: React.FC = () => {
         </form>
       </div>
 
+
+      {/* Pinned Tabs — drag-to-pin zone */}
+      {panelMode === 'tabs' && (
+        <div
+          className={`pinned-tabs ${pinnedTabs.length === 0 ? 'pinned-tabs-empty' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+          onDrop={handleDropToPinZone}
+        >
+          {pinnedTabs.length > 0 ? (
+            <>
+              <div className="pinned-tabs-label">Pinned</div>
+              <div className="pinned-tabs-grid">
+                {pinnedTabs.map(t => (
+                  <PinnedTab key={t.id} tab={t} index={t.originalIndex} isActive={t.id === activeTabId} onSwitch={switchTab} onUnpin={unpinTab} onDragStart={(e, idx) => handleDragStart(e, idx, t.id)} onDragOver={handleDragOver} onDrop={handleDrop} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="pinned-tabs-drop-hint">Drop tabs here to pin</div>
+          )}
+        </div>
+      )}
+
       {/* Find Bar */}
       {showFindBar && (
         <div className="find-bar">
@@ -457,12 +480,16 @@ const App: React.FC = () => {
       {/* Loading Bar */}
       {activeTab?.isLoading && <div className="loading-bar"><div className="loading-bar-progress" /></div>}
 
-      {/* Tab List */}
+      {/* Main Panel Content */}
       <div className="panel-container">
         {panelMode === 'tabs' && (
-          <div className="tab-list">
+          <div
+            className="tab-list"
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+            onDrop={handleDropToUnpinZone}
+          >
             {unpinnedTabs.map(t => (
-              <TabItem key={t.id} tab={t} index={t.originalIndex} isActive={t.id === activeTabId} onSwitch={switchTab} onPin={pinTab} onClose={closeTab} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} />
+              <TabItem key={t.id} tab={t} index={t.originalIndex} isActive={t.id === activeTabId} onSwitch={switchTab} onPin={pinTab} onClose={closeTab} onDragStart={(e, idx) => handleDragStart(e, idx, t.id)} onDragOver={handleDragOver} onDrop={handleDrop} />
             ))}
             <div className="tab new-tab-inline" onClick={() => window.astra.newTab()}>
               <span className="tab-favicon">+</span>
