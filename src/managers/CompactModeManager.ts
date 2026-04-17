@@ -35,7 +35,7 @@ const KEEP_HOVER_MS = 300;
 // Flash duration for events (Zen: 800ms)
 const FLASH_DURATION_MS = 800;
 // Sidebar width when visible
-const SIDEBAR_WIDTH = 280;
+const SIDEBAR_WIDTH = 320;
 
 export class CompactModeManager {
   private state: CompactState = {
