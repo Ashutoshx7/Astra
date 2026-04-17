@@ -498,84 +498,195 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {panelMode === 'bookmarks' && (
-          <div className="list-panel">
-            <h3>Bookmarks</h3>
-            {bookmarks.length === 0 ? <p className="empty-msg">No bookmarks.</p> : bookmarks.map(b => (
-              <div key={b.id} className="list-item" onClick={() => { window.astra.navigate(b.url); setPanelMode('tabs'); }}>
-                <span>⭐</span>
-                <div className="list-item-text">
-                  <div className="list-item-title">{b.title || b.url}</div>
-                  <div className="list-item-url">{b.url}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {panelMode === 'history' && (
-          <div className="list-panel">
+        {panelMode === 'spaces' && (
+          <div className="spaces-panel">
             <div className="panel-header">
-              <h3>History</h3>
-              <button className="clear-btn" onClick={() => window.astra.clearHistory()}>Clear</button>
+              <h3>Workspaces</h3>
+              <button className="space-create-btn" onClick={() => window.astra.createSpace({ name: '', color: '', icon: '' })} title="Create workspace">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
             </div>
-            {history.length === 0 ? <p className="empty-msg">History is empty.</p> : history.map(h => (
-              <div key={h.id} className="list-item" onClick={() => { window.astra.navigate(h.url); setPanelMode('tabs'); }}>
-                <span>🕐</span>
-                <div className="list-item-text">
-                  <div className="list-item-title">{h.title || h.url}</div>
-                  <div className="list-item-url">{h.url}</div>
+            <div className="spaces-list">
+              {spaces.map(space => (
+                <div
+                  key={space.id}
+                  className={`space-card ${space.id === activeSpaceId ? 'active' : ''}`}
+                  onClick={() => { window.astra.switchSpace(space.id); setPanelMode('tabs'); }}
+                >
+                  <div className="space-card-indicator" style={{ background: space.color || '#6366f1' }} />
+                  <span className="space-card-icon">{space.icon}</span>
+                  <div className="space-card-info">
+                    {editingSpaceId === space.id ? (
+                      <input
+                        className="space-rename-input"
+                        value={editingSpaceName}
+                        onChange={(e) => setEditingSpaceName(e.target.value)}
+                        onBlur={() => {
+                          if (editingSpaceName.trim()) window.astra.renameSpace(space.id, editingSpaceName.trim());
+                          setEditingSpaceId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.currentTarget.blur(); }
+                          if (e.key === 'Escape') { setEditingSpaceId(null); }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                        spellCheck={false}
+                      />
+                    ) : (
+                      <span className="space-card-name">{space.name}</span>
+                    )}
+                    <span className="space-card-tabs">
+                      {tabs.filter(t => t.spaceId === space.id).length} tabs
+                    </span>
+                  </div>
+                  <div className="space-card-actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="space-card-action"
+                      onClick={() => {
+                        setEditingSpaceId(space.id);
+                        setEditingSpaceName(space.name);
+                      }}
+                      title="Rename"
+                    >
+                      ✏️
+                    </button>
+                    {spaces.length > 1 && (
+                      <button
+                        className="space-card-action danger"
+                        onClick={() => {
+                          if (confirm('Delete this workspace?')) window.astra.deleteSpace(space.id);
+                        }}
+                        title="Delete"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
         {panelMode === 'settings' && (
           <div className="list-panel settings">
-            <h3>Settings</h3>
-            <div className="setting-group">
-              <label>Search Engine</label>
-              <select defaultValue="google">
-                <option value="google">Google</option>
-                <option value="duckduckgo">DuckDuckGo</option>
-                <option value="bing">Bing</option>
-              </select>
-            </div>
-            <div className="setting-group">
-              <label>Appearance</label>
-              <div className="setting-info">Theme: Astra Dark (Default)</div>
-            </div>
-            <div className="setting-group">
-              <label>Ad Blocker</label>
-              <div className="setting-info">Status: Enabled 🛡️</div>
-            </div>
-            <div className="setting-group">
-              <label>Fingerprint Guard</label>
-              <div className="setting-info">Status: Active 🔒</div>
-              <div className="setting-info" style={{ fontSize: '10px', opacity: 0.6 }}>
-                Canvas noise · WebGL spoofing · Referrer trimming
-              </div>
-            </div>
-            <div className="setting-group">
-              <label>Keyboard Shortcuts</label>
-              <div className="setting-info" style={{ fontSize: '10px', lineHeight: '1.6' }}>
-                Ctrl+S — Toggle compact mode<br/>
-                Ctrl+Shift+S — Split view<br/>
-                Ctrl+Shift+C — Copy URL<br/>
-                Ctrl+Alt+←/→ — Switch workspace<br/>
-                Escape — Close glance/find
-              </div>
-            </div>
-            <div className="setting-group">
-              <label>Bangs</label>
-              <div className="setting-info" style={{ fontSize: '10px', lineHeight: '1.6' }}>
-                !g Google · !yt YouTube · !gh GitHub<br/>
-                !w Wikipedia · !so Stack Overflow<br/>
-                !mdn MDN · !npm npm · !r Reddit<br/>
-                <span style={{ opacity: 0.5 }}>Works anywhere in query: "react !mdn hooks"</span>
-              </div>
-            </div>
+            {settingsSubPanel === 'main' && (
+              <>
+                <div className="panel-header">
+                  <h3>Settings</h3>
+                </div>
+
+                {/* Quick access: Bookmarks & History */}
+                <div className="settings-quick-access">
+                  <button className="settings-quick-btn" onClick={() => { window.astra.getBookmarks(); setSettingsSubPanel('bookmarks'); }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+                    <span>Bookmarks</span>
+                    <span className="settings-quick-chevron">›</span>
+                  </button>
+                  <button className="settings-quick-btn" onClick={() => { window.astra.getHistory(); setSettingsSubPanel('history'); }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>History</span>
+                    <span className="settings-quick-chevron">›</span>
+                  </button>
+                </div>
+
+                <div className="setting-group">
+                  <label>Search Engine</label>
+                  <select defaultValue="google">
+                    <option value="google">Google</option>
+                    <option value="duckduckgo">DuckDuckGo</option>
+                    <option value="bing">Bing</option>
+                  </select>
+                </div>
+                <div className="setting-group">
+                  <label>Appearance</label>
+                  <div className="setting-info">Theme: Astra Dark (Default)</div>
+                </div>
+                <div className="setting-group">
+                  <label>Ad Blocker</label>
+                  <div className="setting-info">Status: Enabled 🛡️</div>
+                </div>
+                <div className="setting-group">
+                  <label>Fingerprint Guard</label>
+                  <div className="setting-info">Status: Active 🔒</div>
+                  <div className="setting-info sub">Canvas noise · WebGL spoofing · Referrer trimming</div>
+                </div>
+                <div className="setting-group">
+                  <label>Keyboard Shortcuts</label>
+                  <div className="setting-info" style={{ fontSize: '11px', lineHeight: '1.8' }}>
+                    Ctrl+T — New tab<br/>
+                    Ctrl+S — Toggle compact mode<br/>
+                    Ctrl+Shift+S — Split view<br/>
+                    Ctrl+Shift+C — Copy URL<br/>
+                    Ctrl+Alt+←/→ — Switch workspace<br/>
+                    Escape — Close glance/find
+                  </div>
+                </div>
+                <div className="setting-group">
+                  <label>Bangs</label>
+                  <div className="setting-info" style={{ fontSize: '11px', lineHeight: '1.8' }}>
+                    !g Google · !yt YouTube · !gh GitHub<br/>
+                    !w Wikipedia · !so Stack Overflow<br/>
+                    !mdn MDN · !npm npm · !r Reddit<br/>
+                    <span className="setting-hint">Works anywhere in query: "react !mdn hooks"</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {settingsSubPanel === 'bookmarks' && (
+              <>
+                <div className="panel-header">
+                  <button className="panel-back-btn" onClick={() => setSettingsSubPanel('main')}>←</button>
+                  <h3>Bookmarks</h3>
+                </div>
+                {bookmarks.length === 0 ? (
+                  <div className="empty-state">
+                    <span className="empty-state-icon">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.3"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+                    </span>
+                    <p>No bookmarks yet</p>
+                    <span className="empty-state-hint">Press the star icon on any page to bookmark it</span>
+                  </div>
+                ) : bookmarks.map(b => (
+                  <div key={b.id} className="list-item" onClick={() => { window.astra.navigate(b.url); setPanelMode('tabs'); }}>
+                    <span className="list-item-icon">⭐</span>
+                    <div className="list-item-text">
+                      <div className="list-item-title">{b.title || b.url}</div>
+                      <div className="list-item-url">{b.url}</div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {settingsSubPanel === 'history' && (
+              <>
+                <div className="panel-header">
+                  <button className="panel-back-btn" onClick={() => setSettingsSubPanel('main')}>←</button>
+                  <h3>History</h3>
+                  <button className="clear-btn" onClick={() => window.astra.clearHistory()}>Clear All</button>
+                </div>
+                {history.length === 0 ? (
+                  <div className="empty-state">
+                    <span className="empty-state-icon">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </span>
+                    <p>No history yet</p>
+                    <span className="empty-state-hint">Your browsing history will appear here</span>
+                  </div>
+                ) : history.map(h => (
+                  <div key={h.id} className="list-item" onClick={() => { window.astra.navigate(h.url); setPanelMode('tabs'); }}>
+                    <span className="list-item-icon">🕐</span>
+                    <div className="list-item-text">
+                      <div className="list-item-title">{h.title || h.url}</div>
+                      <div className="list-item-url">{h.url}</div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -597,63 +708,47 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Workspace Strip (moved to bottom) */}
-      {spaces.length > 0 && (
-        <div className="workspace-strip">
-          <div className="workspace-strip-row">
-            {spaces.map(space => (
-              <div
-                key={space.id}
-                className={`space-icon ${space.id === activeSpaceId ? 'active' : ''}`}
-                style={{ '--space-color': space.color } as React.CSSProperties}
-                onClick={() => window.astra.switchSpace(space.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setSpaceContextMenu({ x: e.clientX, y: e.clientY, spaceId: space.id });
-                }}
-                title={space.name}
-              >
-                {space.icon}
-              </div>
-            ))}
-            <button
-              className="space-add-btn"
-              onClick={() => window.astra.createSpace({ name: '', color: '', icon: '' })}
-              title="New Workspace"
-            >
-              +
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom Bar */}
-      <div className="sidebar-footer">
-        <button className="bottom-icon" onClick={() => setPanelMode(panelMode === 'settings' ? 'tabs' : 'settings')} title="Settings">⚙</button>
-        <div className="bottom-space-dots">
+      {/* Bottom Bar: Settings (left) | Space icons (center) | + (right) */}
+      <div className="sidebar-bottom-bar">
+        <button
+          className={`bottom-bar-settings ${panelMode === 'settings' ? 'active' : ''}`}
+          onClick={() => { setSettingsSubPanel('main'); setMode('settings'); }}
+          title="Settings"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+        <div className="bottom-bar-spaces">
           {spaces.map(space => (
             <div
               key={space.id}
-              className={`bottom-space-dot ${space.id === activeSpaceId ? 'active' : ''}`}
-              style={{ background: space.color || '#888' }}
+              className={`space-icon ${space.id === activeSpaceId ? 'active' : ''}`}
+              style={{ '--space-color': space.color } as React.CSSProperties}
               onClick={() => window.astra.switchSpace(space.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSpaceContextMenu({ x: e.clientX, y: e.clientY, spaceId: space.id });
+              }}
               title={space.name}
-            />
+            >
+              {space.icon}
+            </div>
           ))}
         </div>
-        <button className="bottom-icon" onClick={() => setPanelMode(panelMode === 'bookmarks' ? 'tabs' : 'bookmarks')} title="Bookmarks">⭐</button>
-        <button className="bottom-icon" onClick={() => setPanelMode(panelMode === 'history' ? 'tabs' : 'history')} title="History">🕐</button>
-        {activeDownloads.length > 0 && (
-          <button className="bottom-icon" title="Downloads">📥</button>
-        )}
+        <button
+          className="bottom-bar-add"
+          onClick={() => window.astra.createSpace({ name: '', color: '', icon: '' })}
+          title="New Workspace"
+        >
+          +
+        </button>
       </div>
 
       {/* Space Context Menu */}
       {spaceContextMenu && (
         <div
           className="space-context-menu"
-          style={{ top: spaceContextMenu.y, left: spaceContextMenu.x }}
+          style={{ bottom: `calc(100vh - ${spaceContextMenu.y}px)`, left: spaceContextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           <button className="space-context-item" onClick={() => {
