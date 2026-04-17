@@ -93,7 +93,7 @@ interface HistoryEntry { id: number; url: string; title: string; visitCount: num
 interface DownloadItem { id: string; filename: string; url: string; totalBytes: number; receivedBytes: number; state: string; }
 interface FindResult { activeMatchOrdinal: number; matches: number; }
 
-type PanelMode = 'tabs' | 'bookmarks' | 'history' | 'settings';
+type PanelMode = 'tabs' | 'spaces' | 'bookmarks' | 'history' | 'settings';
 
 // --------------------------------------------------
 // Favicon — memoized
@@ -202,11 +202,15 @@ const App: React.FC = () => {
   const [spaceContextMenu, setSpaceContextMenu] = useState<{ x: number; y: number; spaceId: string } | null>(null);
   const [compactState, setCompactState] = useState<{ mode: string; sidebarVisible: boolean }>({ mode: 'full', sidebarVisible: true });
   const [glanceState, setGlanceState] = useState<{ active: boolean; url: string }>({ active: false, url: '' });
+  const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
+  const [editingSpaceName, setEditingSpaceName] = useState('');
+  const [settingsSubPanel, setSettingsSubPanel] = useState<'main' | 'bookmarks' | 'history'>('main');
 
   const urlInputRef = useRef<HTMLInputElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draggedIndex = useRef<number | null>(null);
+  const draggedTabId = useRef<string | null>(null);
 
   // --------------------------------------------------
   // Stable callback refs
@@ -217,12 +221,13 @@ const App: React.FC = () => {
   const unpinTab = useCallback((id: string) => window.astra.unpinTab(id), []);
   const closeTab = useCallback((id: string) => window.astra.closeTab(id), []);
 
-  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+  const handleDragStart = useCallback((e: React.DragEvent, index: number, tabId?: string) => {
     draggedIndex.current = index;
+    draggedTabId.current = tabId || null;
     e.dataTransfer.effectAllowed = 'move';
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, _index?: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   }, []);
@@ -232,6 +237,27 @@ const App: React.FC = () => {
       window.astra.reorderTabs(draggedIndex.current, dropIndex);
     }
     draggedIndex.current = null;
+    draggedTabId.current = null;
+  }, []);
+
+  // Drop on pinned zone = pin the tab
+  const handleDropToPinZone = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (draggedTabId.current) {
+      window.astra.pinTab(draggedTabId.current);
+    }
+    draggedIndex.current = null;
+    draggedTabId.current = null;
+  }, []);
+
+  // Drop on tab list zone = unpin the tab
+  const handleDropToUnpinZone = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (draggedTabId.current) {
+      window.astra.unpinTab(draggedTabId.current);
+    }
+    draggedIndex.current = null;
+    draggedTabId.current = null;
   }, []);
 
   // --------------------------------------------------
@@ -327,11 +353,11 @@ const App: React.FC = () => {
     else window.astra.addBookmark(tab.url, tab.title);
   }, [tabs, activeTabId, isBookmarked]);
 
-  const setMode = (mode: PanelMode) => {
+  const setMode = useCallback((mode: PanelMode) => {
     if (mode === 'bookmarks') window.astra.getBookmarks();
     if (mode === 'history') window.astra.getHistory();
-    setPanelMode(mode);
-  };
+    setPanelMode(prev => prev === mode ? 'tabs' : mode);
+  }, []);
 
   // Compact mode sidebar classes
   const sidebarClasses = [
