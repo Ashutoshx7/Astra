@@ -162,7 +162,7 @@ export const IPC = {
 // --------------------------------------------------
 
 export const CONFIG = {
-  SIDEBAR_WIDTH: 280,
+  SIDEBAR_WIDTH: 320,
   DEFAULT_URL: 'https://duckduckgo.com',
   NEW_TAB_URL: 'astra://newtab',
   SEARCH_URL: 'https://duckduckgo.com/?q=',
