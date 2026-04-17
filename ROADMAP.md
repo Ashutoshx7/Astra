@@ -175,14 +175,14 @@
 > Goal: Make it feel premium. Make it fast.
 
 ### Week 7: UI/UX Polish
-- [x] Sidebar collapse/expand animation (Zenith Spec)
-- [x] Tab drag-to-reorder (HTML5 Native)
+- [ ] Sidebar collapse/expand animation
+- [ ] Tab drag-to-reorder
 - [ ] Tab preview on hover (thumbnail)
-- [x] Smooth page transitions
-- [x] Loading progress bar (top of web view)
-- [x] Custom scrollbar styling
-- [x] Dark/light theme toggle (Indigo default)
-- [x] Custom accent colors (Indigo/Spring)
+- [ ] Smooth page transitions
+- [ ] Loading progress bar (top of web view)
+- [ ] Custom scrollbar styling
+- [ ] Dark/light theme toggle
+- [ ] Custom accent colors
 
 ### Week 8: Performance
 - [ ] Startup time optimization (<1s cold start)
