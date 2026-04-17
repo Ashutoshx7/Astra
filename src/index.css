@@ -1,54 +1,55 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
 
 /* ==========================================================
-   ASTRA DESIGN SYSTEM
-   Combined from Helium (3px base-padding) + Zen (element-separation)
+   ASTRA DESIGN SYSTEM — Zen Browser Inspired
    ========================================================== */
 
 :root {
-  /* Spacing — Helium's base-padding system */
+  /* Spacing */
   --astra-base: 3px;
   --astra-base-2x: 6px;
   --astra-base-3x: 9px;
   --astra-base-4x: 12px;
 
-  /* Element Separation — Zen's system */
+  /* Element Separation */
   --astra-element-sep: 8px;
   --astra-split-gap: var(--astra-element-sep);
 
   /* Sizing */
-  --astra-tab-height: 31px;
+  --astra-tab-height: 34px;
   --astra-toolbar-height: 28px;
-  --astra-sidebar-width: 280px;
+  --astra-sidebar-width: 320px;
 
-  /* Colors — Zen dark mode palette */
+  /* Colors — refined dark palette */
   --astra-primary: #6366f1;
   --astra-primary-rgb: 99, 102, 241;
-  --astra-bg: #1b1b1b;
-  --astra-bg-rgb: 27, 27, 27;
-  --astra-surface: rgba(255, 255, 255, 0.03);
+  --astra-bg: #18181b;
+  --astra-bg-rgb: 24, 24, 27;
+  --astra-surface: rgba(255, 255, 255, 0.035);
+  --astra-surface-hover: rgba(255, 255, 255, 0.06);
   --astra-border: rgba(255, 255, 255, 0.06);
-  --astra-text: rgba(255, 255, 255, 0.87);
-  --astra-text-muted: rgba(255, 255, 255, 0.45);
+  --astra-text: rgba(255, 255, 255, 0.9);
+  --astra-text-secondary: rgba(255, 255, 255, 0.6);
+  --astra-text-muted: rgba(255, 255, 255, 0.35);
   --astra-danger: #ef4444;
   --astra-success: #10b981;
   --astra-warning: #f59e0b;
-  --astra-hover-bg: rgba(255, 255, 255, 0.08);
-  --astra-active-bg: rgba(255, 255, 255, 0.12);
-  --astra-toolbox-padding: 8px;
+  --astra-hover-bg: rgba(255, 255, 255, 0.06);
+  --astra-active-bg: rgba(255, 255, 255, 0.1);
+  --astra-toolbox-padding: 10px;
 
-  /* Border Radius — Zen's 7px system */
-  --astra-radius-sm: 4px;
-  --astra-radius-md: 7px;
-  --astra-radius-lg: 10px;
+  /* Border Radius */
+  --astra-radius-sm: 6px;
+  --astra-radius-md: 8px;
+  --astra-radius-lg: 12px;
   --astra-radius-pill: 999px;
 
-  /* Shadows — Zen's big shadow */
-  --astra-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --astra-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
-  --astra-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+  /* Shadows */
+  --astra-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --astra-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.16);
+  --astra-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.24);
 
-  /* Animations — Zen's spring easing */
+  /* Animations */
   --astra-spring: cubic-bezier(0.175, 0.885, 0.32, 1.05);
   --astra-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --astra-duration-fast: 0.15s;
@@ -63,7 +64,7 @@
   box-sizing: border-box;
 }
 
-/* === GPU PERFORMANCE HINTS === */
+/* === GPU PERFORMANCE === */
 .loading-bar-progress,
 .spinner {
   will-change: transform;
