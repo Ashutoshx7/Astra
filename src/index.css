@@ -74,7 +74,7 @@
   contain: content;
 }
 
-/* === SPRING ANIMATION KEYFRAMES (Zen-inspired) === */
+/* === ANIMATIONS === */
 @keyframes springIn {
   0% { opacity: 0; transform: scale(0.9) translateY(8px); }
   60% { opacity: 1; transform: scale(1.02) translateY(-2px); }
@@ -101,256 +101,20 @@
   100% { opacity: 0; transform: translateY(-10px) scale(0.95); }
 }
 
-/* ==========================================================
-   WORKSPACE STRIP (Zen Browser's Space Picker)
-   ========================================================== */
-
-/* Zen-style workspace icon strip */
-.workspace-strip {
-  display: flex;
-  flex-direction: column;
-  padding: 6px var(--astra-toolbox-padding);
-  gap: 3px;
+@keyframes panelFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.workspace-strip-row {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-/* Zen's workspace button: 28x28, grayscale when inactive */
-.space-icon {
-  width: 28px;
-  height: 28px;
-  max-width: 28px;
-  border-radius: var(--astra-radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  cursor: pointer;
-  border: none;
-  position: relative;
-  background: transparent;
-  filter: grayscale(1);
-  opacity: 0.7;
-  transition: filter 0.2s, opacity 0.2s, transform 0.2s;
-}
-
-.space-icon:hover {
-  filter: grayscale(0);
-  opacity: 1;
-  background: var(--astra-hover-bg);
-}
-
-.space-icon.active {
-  filter: grayscale(0);
-  opacity: 1;
-}
-
-.space-add-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--astra-radius-md);
-  border: none;
-  background: transparent;
-  color: var(--astra-text-muted);
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.5;
-  transition: all 0.2s;
-}
-
-.space-add-btn:hover {
-  opacity: 1;
-  background: var(--astra-hover-bg);
-}
-
-/* === GLASSMORPHISM UTILITY (Zen's acrylic elements) === */
-.glass {
-  background: rgba(var(--astra-bg-rgb), 0.7);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* === HIBERNATED TAB INDICATOR (Helium + Zen) === */
-.tab.hibernated {
-  opacity: 0.55;
-}
-
-.tab.hibernated .tab-title::after {
-  content: ' 🌙';
-  font-size: 10px;
-}
-
-/* === URL COPIED TOAST === */
-.url-copied-toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(var(--astra-primary-rgb), 0.9);
-  color: white;
-  padding: 8px 16px;
-  border-radius: var(--astra-radius-pill);
-  font-size: 12px;
-  font-weight: 500;
-  z-index: 1000;
-  animation: toastIn 0.2s var(--astra-spring), toastOut 0.2s 1.5s forwards;
-  pointer-events: none;
-}
-
-/* === SPACE CONTEXT MENU === */
-.space-context-menu {
-  position: fixed;
-  background: rgba(30, 30, 45, 0.95);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--astra-radius-md);
-  padding: 4px;
-  z-index: 999;
-  min-width: 160px;
-  box-shadow: var(--astra-shadow-lg);
-  animation: fadeSlideIn 0.15s var(--astra-ease-out);
-}
-
-.space-context-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--astra-radius-sm);
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--astra-text);
-  border: none;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-  transition: background 0.1s;
-}
-
-.space-context-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.space-context-item.danger {
-  color: var(--astra-danger);
-}
-
-.space-context-item.danger:hover {
-  background: rgba(239, 68, 68, 0.1);
+@keyframes loadingAnim {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(350%); }
 }
 
 /* ==========================================================
-   COMPACT MODE (Zen's auto-hide sidebar)
+   SIDEBAR — Main Container
    ========================================================== */
 
-.sidebar.compact-mode {
-  transition: transform var(--astra-duration-normal) var(--astra-spring),
-              opacity var(--astra-duration-fast) ease;
-}
-
-.sidebar.compact-hidden {
-  transform: translateX(-100%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.sidebar.compact-visible {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.compact-indicator {
-  position: fixed;
-  bottom: 12px;
-  left: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: var(--astra-radius-pill);
-  background: rgba(var(--astra-bg-rgb), 0.8);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--astra-border);
-  font-size: 10px;
-  color: var(--astra-text-muted);
-  cursor: pointer;
-  transition: opacity 0.2s;
-  z-index: 100;
-}
-
-.compact-indicator:hover {
-  color: var(--astra-text);
-}
-
-/* ==========================================================
-   GLANCE OVERLAY (Zen's link preview)
-   ========================================================== */
-
-.glance-overlay-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 10px 20px;
-  background: rgba(var(--astra-bg-rgb), 0.85);
-  backdrop-filter: blur(16px) saturate(1.4);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  z-index: 500;
-  animation: fadeSlideIn 0.2s var(--astra-ease-out);
-}
-
-.glance-overlay-bar .glance-url {
-  font-size: 12px;
-  color: var(--astra-text-muted);
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.glance-overlay-bar button {
-  padding: 6px 14px;
-  border-radius: var(--astra-radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--astra-text);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all var(--astra-duration-fast) ease;
-  font-family: inherit;
-}
-
-.glance-overlay-bar button:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.glance-overlay-bar button.glance-expand {
-  background: rgba(var(--astra-primary-rgb), 0.15);
-  border-color: rgba(var(--astra-primary-rgb), 0.3);
-  color: #a5b4fc;
-}
-
-.glance-overlay-bar button.glance-expand:hover {
-  background: rgba(var(--astra-primary-rgb), 0.25);
-}
-
-/* === SIDEBAR (Zen-matched) === */
 .sidebar {
   font-family: 'Outfit', -apple-system, system-ui, sans-serif;
   background: var(--astra-bg);
@@ -370,12 +134,23 @@ select,
   -webkit-app-region: no-drag;
 }
 
-/* === URL BAR (tucked below workspace strip) === */
+/* Title bar drag area */
+.sidebar-drag-area {
+  height: 30px;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+/* ==========================================================
+   URL BAR
+   ========================================================== */
+
 .url-bar {
-  padding: var(--astra-toolbox-padding) 10px;
+  padding: 0 var(--astra-toolbox-padding) 6px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .nav-buttons {
@@ -422,9 +197,9 @@ select,
 .url-input-wrapper {
   display: flex;
   align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--astra-border);
   border-radius: var(--astra-radius-md);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--astra-surface);
   transition: all 0.15s ease;
 }
 
@@ -434,23 +209,23 @@ select,
 }
 
 .security-icon {
-  padding-left: 12px;
+  padding-left: 10px;
   font-size: 12px;
   opacity: 0.5;
 }
 
 .security-icon.secure {
-  color: #10b981;
+  color: var(--astra-success);
   opacity: 0.8;
 }
 
 .url-input {
   flex: 1;
-  padding: 10px 8px;
+  padding: 8px 8px;
   border: none;
   background: transparent;
   color: #fff;
-  font-size: 13px;
+  font-size: 12.5px;
   font-family: inherit;
   outline: none;
   min-width: 0;
