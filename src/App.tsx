@@ -62,6 +62,9 @@ declare global {
       expandGlance: () => void;
       onGlanceOpened: (cb: (data: { url: string }) => void) => void;
       onGlanceClosed: (cb: () => void) => void;
+      // Sidebar Resize
+      resizeSidebar: (width: number) => void;
+      onSidebarWidthChanged: (cb: (width: number) => void) => void;
     };
   }
 }
@@ -211,6 +214,10 @@ const App: React.FC = () => {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draggedIndex = useRef<number | null>(null);
   const draggedTabId = useRef<string | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeStartX = useRef<number>(0);
+  const resizeStartWidth = useRef<number>(320);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   // --------------------------------------------------
   // Stable callback refs
@@ -316,6 +323,44 @@ const App: React.FC = () => {
 
     window.astra.requestTabs();
     window.astra.requestSpaces();
+
+    // Listen for sidebar width changes from main process
+    window.astra.onSidebarWidthChanged((width: number) => {
+      document.documentElement.style.setProperty('--astra-sidebar-width', `${width}px`);
+    });
+  }, []);
+
+  // --------------------------------------------------
+  // Sidebar Resize Handlers
+  // --------------------------------------------------
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    resizeStartX.current = e.clientX;
+    const sidebar = sidebarRef.current;
+    resizeStartWidth.current = sidebar ? sidebar.getBoundingClientRect().width : 320;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - resizeStartX.current;
+      const newWidth = Math.max(220, Math.min(600, resizeStartWidth.current + delta));
+      window.astra.resizeSidebar(newWidth);
+      document.documentElement.style.setProperty('--astra-sidebar-width', `${newWidth}px`);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
   }, []);
 
   // --------------------------------------------------
@@ -381,7 +426,7 @@ const App: React.FC = () => {
   const spaceIcons = ['🏠', '💼', '🎮', '📚', '🎵', '🧪', '🌍', '🎨', '💡', '🔥', '🍕', '🚀'];
 
   return (
-    <div className={sidebarClasses} onClick={() => setSpaceContextMenu(null)}>
+    <div className={sidebarClasses} ref={sidebarRef} onClick={() => setSpaceContextMenu(null)}>
       {/* Title bar drag area */}
       <div className="sidebar-drag-area" />
 
@@ -788,6 +833,12 @@ const App: React.FC = () => {
           <button onClick={() => window.astra.closeGlance()}>✕ Close</button>
         </div>
       )}
+
+      {/* Sidebar Resize Handle */}
+      <div
+        className={`sidebar-resize-handle ${isResizing ? 'active' : ''}`}
+        onMouseDown={handleResizeMouseDown}
+      />
     </div>
   );
 };

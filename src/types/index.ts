@@ -155,6 +155,8 @@ export const IPC = {
   SHOW_FIND_BAR: 'show-find-bar',
   ZOOM_CHANGED: 'zoom-changed',
   SPACES_UPDATED: 'spaces-updated',
+  SIDEBAR_RESIZE: 'sidebar:resize',
+  SIDEBAR_WIDTH_CHANGED: 'sidebar:width-changed',
 } as const;
 
 // --------------------------------------------------
@@ -163,6 +165,8 @@ export const IPC = {
 
 export const CONFIG = {
   SIDEBAR_WIDTH: 320,
+  SIDEBAR_MIN_WIDTH: 220,
+  SIDEBAR_MAX_WIDTH: 600,
   DEFAULT_URL: 'https://duckduckgo.com',
   NEW_TAB_URL: 'astra://newtab',
   SEARCH_URL: 'https://duckduckgo.com/?q=',

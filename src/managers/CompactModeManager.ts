@@ -51,6 +51,8 @@ export class CompactModeManager {
   // Throttle mousemove processing to 1 per frame (~16ms) to avoid main-process flooding
   private lastMouseMoveTime = 0;
   private static readonly MOUSE_THROTTLE_MS = 16;
+  // Dynamic sidebar width (updated via resize)
+  private baseWidth = SIDEBAR_WIDTH;
 
   constructor(
     private readonly mainWindow: BaseWindow,
@@ -71,7 +73,12 @@ export class CompactModeManager {
   }
 
   getSidebarWidth(): number {
-    return this.isSidebarVisible() ? SIDEBAR_WIDTH : 0;
+    return this.isSidebarVisible() ? this.baseWidth : 0;
+  }
+
+  /** Update base width when sidebar is resized */
+  setBaseWidth(width: number): void {
+    this.baseWidth = width;
   }
 
   /**
@@ -122,12 +129,12 @@ export class CompactModeManager {
     }
 
     // Mouse left the sidebar area → start hide timer
-    if (x > SIDEBAR_WIDTH && this.state.sidebarVisible && this.state.sidebarHoverLocked) {
+    if (x > this.baseWidth && this.state.sidebarVisible && this.state.sidebarHoverLocked) {
       this.startHideTimer();
     }
 
     // Mouse re-entered sidebar → cancel hide
-    if (x <= SIDEBAR_WIDTH && this.state.sidebarHoverLocked) {
+    if (x <= this.baseWidth && this.state.sidebarHoverLocked) {
       this.clearHideTimer();
     }
   }
@@ -145,7 +152,7 @@ export class CompactModeManager {
     this.state.flashTimer = setTimeout(() => {
       this.state.flashTimer = null;
       // Only hide if mouse isn't hovering
-      if (this.lastMouseX > SIDEBAR_WIDTH) {
+      if (this.lastMouseX > this.baseWidth) {
         this.hideSidebar();
       }
     }, FLASH_DURATION_MS);
@@ -165,7 +172,7 @@ export class CompactModeManager {
 
   unlockFromPopup(): void {
     this.state.sidebarHoverLocked = false;
-    if (this.state.mode !== 'full' && this.lastMouseX > SIDEBAR_WIDTH) {
+    if (this.state.mode !== 'full' && this.lastMouseX > this.baseWidth) {
       this.startHideTimer();
     }
   }

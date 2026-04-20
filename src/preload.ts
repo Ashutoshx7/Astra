@@ -73,6 +73,9 @@ contextBridge.exposeInMainWorld('astra', {
   togglePrivacy: () => ipcRenderer.send('privacy:toggle'),
   getPrivacyState: () => ipcRenderer.send('privacy:get-state'),
 
+  // Sidebar Resize
+  resizeSidebar: (width: number) => ipcRenderer.send('sidebar:resize', width),
+
   // Event listeners (Main → Sidebar)
   onTabsUpdated: (cb: Function) => ipcRenderer.on('tabs-updated', (_e: any, d: any) => cb(d)),
   onUrlChanged: (cb: Function) => ipcRenderer.on('url-changed', (_e: any, url: string) => cb(url)),
@@ -92,4 +95,5 @@ contextBridge.exposeInMainWorld('astra', {
   onGlanceClosed: (cb: Function) => ipcRenderer.on('glance:closed', () => cb()),
   onSplitState: (cb: Function) => ipcRenderer.on('split:state', (_e: any, d: any) => cb(d)),
   onPrivacyState: (cb: Function) => ipcRenderer.on('privacy:state', (_e: any, d: any) => cb(d)),
+  onSidebarWidthChanged: (cb: Function) => ipcRenderer.on('sidebar:width-changed', (_e: any, w: number) => cb(w)),
 });

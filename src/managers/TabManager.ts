@@ -29,6 +29,7 @@ export class TabManager {
   private sendTimer: ReturnType<typeof setTimeout> | null = null;
   private static readonly SEND_THROTTLE_MS = 100;
   private spaceManager: SpaceManager | null = null;
+  private sidebarWidth: number = CONFIG.SIDEBAR_WIDTH;
 
   constructor(
     private readonly mainWindow: BaseWindow,
@@ -49,6 +50,17 @@ export class TabManager {
 
   setSpaceManager(sm: SpaceManager): void {
     this.spaceManager = sm;
+  }
+
+  setSidebarWidth(width: number): void {
+    this.sidebarWidth = Math.max(
+      CONFIG.SIDEBAR_MIN_WIDTH,
+      Math.min(CONFIG.SIDEBAR_MAX_WIDTH, width),
+    );
+  }
+
+  getSidebarWidth(): number {
+    return this.sidebarWidth;
   }
 
   createTab(url?: string, isPinned = false, spaceId?: string): ManagedTab {
@@ -523,7 +535,7 @@ export class TabManager {
    */
   private layoutViews(): void {
     const { width, height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: CONFIG.SIDEBAR_WIDTH, height });
+    this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth, height });
 
     const activeTab = this.getActiveTab();
 
@@ -548,8 +560,8 @@ export class TabManager {
     // Always update bounds (for resize events)
     if (activeTab) {
       activeTab.view.setBounds({
-        x: CONFIG.SIDEBAR_WIDTH, y: 0,
-        width: width - CONFIG.SIDEBAR_WIDTH, height,
+        x: this.sidebarWidth, y: 0,
+        width: width - this.sidebarWidth, height,
       });
     }
   }

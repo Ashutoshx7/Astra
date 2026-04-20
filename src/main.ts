@@ -261,6 +261,21 @@ function createWindow(): void {
   ipcMain.on('compact:unlock-popup', () => compactMode.unlockFromPopup());
 
   // --------------------------------------------------
+  // Sidebar Resize IPC
+  // --------------------------------------------------
+
+  ipcMain.on(IPC.SIDEBAR_RESIZE, (_e, width: number) => {
+    tabManager.setSidebarWidth(width);
+    const clampedWidth = tabManager.getSidebarWidth();
+    const { height } = mainWindow!.getContentBounds();
+    sidebarView.setBounds({ x: 0, y: 0, width: clampedWidth, height });
+    tabManager.layoutWithSidebarWidth(clampedWidth);
+    // Update CompactModeManager with the new base width
+    compactMode.setBaseWidth(clampedWidth);
+    sidebarView.webContents.send(IPC.SIDEBAR_WIDTH_CHANGED, clampedWidth);
+  });
+
+  // --------------------------------------------------
   // Glance IPC Handlers (Zen's killer feature)
   // --------------------------------------------------
 
