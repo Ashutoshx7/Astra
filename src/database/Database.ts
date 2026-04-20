@@ -39,7 +39,16 @@ export class AppDatabase {
   constructor() {
     const dbPath = path.join(app.getPath('userData'), 'astra.db');
     this.db = new Database(dbPath);
+    // WAL mode: concurrent reads + non-blocking writes
     this.db.pragma('journal_mode = WAL');
+    // NORMAL: sync on WAL checkpoints only (safe with WAL, much faster than FULL)
+    this.db.pragma('synchronous = NORMAL');
+    // 32MB page cache (reduces disk I/O for history/bookmark queries)
+    this.db.pragma('cache_size = -32000');
+    // Memory-mapped I/O for large sequential reads (history scrolling)
+    this.db.pragma('mmap_size = 134217728'); // 128MB
+    // Keep temp tables in memory (for suggestion UNION queries)
+    this.db.pragma('temp_store = MEMORY');
     this.migrate();
 
     this.stmtInsertHistory = this.db.prepare(

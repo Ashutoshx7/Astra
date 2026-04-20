@@ -49,7 +49,7 @@ export class GlanceManager {
     startY: 0,
   };
 
-  private animationTimer: ReturnType<typeof setTimeout> | null = null;
+  private animationTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly mainWindow: BaseWindow,
@@ -215,8 +215,13 @@ export class GlanceManager {
     let step = 0;
     const stepDuration = ANIMATION_DURATION / ANIMATION_STEPS;
 
-    const animate = () => {
-      if (step >= ANIMATION_STEPS || !this.state.active) return;
+    // Use setInterval instead of chained setTimeout — stable inter-frame timing,
+    // no cumulative drift across 20 steps
+    this.animationTimer = setInterval(() => {
+      if (step >= ANIMATION_STEPS || !this.state.active) {
+        this.cancelAnimation();
+        return;
+      }
 
       step++;
       const t = step / ANIMATION_STEPS;
@@ -236,16 +241,12 @@ export class GlanceManager {
       try {
         view.setBounds({ x, y, width: Math.max(w, 50), height: Math.max(h, 50) });
       } catch { /* view might be destroyed */ }
-
-      this.animationTimer = setTimeout(animate, stepDuration);
-    };
-
-    animate();
+    }, stepDuration);
   }
 
   private cancelAnimation(): void {
     if (this.animationTimer) {
-      clearTimeout(this.animationTimer);
+      clearInterval(this.animationTimer);
       this.animationTimer = null;
     }
   }

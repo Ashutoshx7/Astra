@@ -55,7 +55,9 @@ export class TabManager {
     const id = this.nextId();
     const view = new WebContentsView();
 
-    this.mainWindow.contentView.addChildView(view);
+    // Performance: do NOT add to contentView yet — only attach when the tab becomes active.
+    // Adding every tab immediately wastes GPU compositor memory for background tabs.
+    // The view IS created so webContents starts loading in the background (preloading).
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
 
     const loadUrl = url || this.newTabPageUrl;
@@ -128,7 +130,8 @@ export class TabManager {
     if (!tab || tab.isPinned) return;
 
     const index = this.tabs.indexOf(tab);
-    try { this.mainWindow.contentView.removeChildView(tab.view); } catch { /* ok */ }
+    // View may not be attached if it was created but never activated — try/catch handles both cases
+    try { this.mainWindow.contentView.removeChildView(tab.view); } catch { /* not attached, ok */ }
 
     if (this.currentlyAttachedTabId === tabId) {
       this.currentlyAttachedTabId = null;

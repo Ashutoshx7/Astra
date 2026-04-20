@@ -48,6 +48,9 @@ export class CompactModeManager {
 
   // Track mouse position via IPC from renderer
   private lastMouseX = 0;
+  // Throttle mousemove processing to 1 per frame (~16ms) to avoid main-process flooding
+  private lastMouseMoveTime = 0;
+  private static readonly MOUSE_THROTTLE_MS = 16;
 
   constructor(
     private readonly mainWindow: BaseWindow,
@@ -101,6 +104,11 @@ export class CompactModeManager {
    * Zen detects edge proximity per-element; we simplify to left-edge.
    */
   handleMouseMove(x: number, y: number): void {
+    // Throttle: don't process more than 1 mousemove per frame
+    const now = Date.now();
+    if (now - this.lastMouseMoveTime < CompactModeManager.MOUSE_THROTTLE_MS) return;
+    this.lastMouseMoveTime = now;
+
     this.lastMouseX = x;
 
     if (this.state.mode === 'full') return;

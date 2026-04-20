@@ -27,11 +27,22 @@ require('events').defaultMaxListeners = CONFIG.MAX_LISTENERS;
 // Chromium Performance Flags (inspired by Helium browser)
 // --------------------------------------------------
 app.commandLine.appendSwitch('enable-features',
-  'ParallelDownloading,HighEfficiencyMode'
+  'ParallelDownloading,HighEfficiencyMode,UseOzonePlatform,VaapiVideoDecodeLinuxGL'
 );
 // Smoother scrolling & GPU acceleration
 app.commandLine.appendSwitch('enable-smooth-scrolling');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
+// Zero-copy texture upload (reduces GPU memory copies)
+app.commandLine.appendSwitch('enable-zero-copy');
+// Don't throttle background tabs — critical for tab restore & media
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// Use hardware GPU even if blocklisted (Helium pattern)
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+// Faster compositing pipeline
+app.commandLine.appendSwitch('enable-accelerated-video-decode');
+app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
 
 if (started) app.quit();
 
@@ -295,11 +306,19 @@ function createWindow(): void {
 // --------------------------------------------------
 
 app.on('ready', async () => {
+  // Performance: Initialize AdBlocker and Database in parallel with each other
+  // (AdBlocker fetches filter lists from network — don't block window creation on it)
   const adBlocker = new AdBlocker();
-  await adBlocker.initialize();
-
   database = new AppDatabase();
+
+  // Start AdBlocker async, then open window immediately — tabs will be protected
+  // by the time the user loads a real URL (AdBlocker is fast on second run via cache)
+  const adBlockerReady = adBlocker.initialize();
+
   createWindow();
+
+  // Wait in background — blocks are applied to the session once ready
+  adBlockerReady.catch((err) => console.error('[Astra] AdBlocker failed:', err));
 
   app.on('before-quit', () => {
     tabManager?.saveSession();

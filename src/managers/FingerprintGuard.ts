@@ -53,6 +53,9 @@ function noiseFromHash(hash: number, index: number): number {
 export class FingerprintGuard {
   private sessionSeed: number;
   private enabled = true;
+  // WeakSet: tracks which WebContents already have protection listeners attached.
+  // WeakSet ensures GC can collect destroyed WebContents without memory leaks.
+  private readonly protected = new WeakSet<WebContents>();
 
   constructor() {
     // Generate a session-unique seed (changes each app launch)
@@ -76,11 +79,28 @@ export class FingerprintGuard {
   injectProtections(webContents: WebContents): void {
     if (!this.enabled) return;
 
-    webContents.on('did-finish-load', () => {
+    // Use a WeakSet to track which WebContents already have the listener attached.
+    // Without this, calling injectProtections multiple times (e.g. due to onViewCreated
+    // being called after session restore) would stack listeners.
+    if (this.protected.has(webContents)) return;
+    this.protected.add(webContents);
+
+    // 'did-navigate' fires after cross-document navigation (covers page loads).
+    // We don't use 'did-finish-load' because it fires even for subframes & redirects.
+    webContents.on('did-navigate', () => {
+      if (!this.enabled) return;
       const origin = this.getOrigin(webContents.getURL());
       const originHash = fnv1aHash(`${origin}:${this.sessionSeed}`);
-
       this.injectCanvasProtection(webContents, originHash);
+      this.injectNavigatorProtection(webContents);
+      this.injectWebGLProtection(webContents, originHash);
+    });
+
+    // Also inject on same-page navigation (hash changes, history.pushState)
+    webContents.on('did-navigate-in-page', (_e, _url, isMainFrame) => {
+      if (!this.enabled || !isMainFrame) return;
+      const origin = this.getOrigin(webContents.getURL());
+      const originHash = fnv1aHash(`${origin}:${this.sessionSeed}`);
       this.injectNavigatorProtection(webContents);
       this.injectWebGLProtection(webContents, originHash);
     });
