@@ -34,9 +34,11 @@
   --astra-danger: #ef4444;
   --astra-success: #10b981;
   --astra-warning: #f59e0b;
-  --astra-hover-bg: rgba(255, 255, 255, 0.06);
-  --astra-active-bg: rgba(255, 255, 255, 0.1);
+  --astra-hover-bg: color-mix(in srgb, currentColor 8%, transparent);
+  --astra-active-bg: color-mix(in srgb, currentColor 14%, transparent);
   --astra-toolbox-padding: 10px;
+  --astra-element-bg: color-mix(in oklch, white 10%, transparent);
+  --astra-press-scale: 0.95;
 
   /* Border Radius */
   --astra-radius-sm: 6px;
@@ -241,12 +243,17 @@ select,
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s, transform 0.12s;
 }
 
 .nav-btn:hover {
-  background: var(--astra-hover-bg);
+  background: color-mix(in srgb, currentColor 8%, transparent);
   color: var(--astra-text);
+}
+
+.nav-btn:active {
+  transform: scale(var(--astra-press-scale));
+  background: color-mix(in srgb, currentColor 14%, transparent);
 }
 
 .zoom-indicator {
@@ -267,15 +274,20 @@ select,
 .url-input-wrapper {
   display: flex;
   align-items: center;
-  border: 1px solid var(--astra-border);
+  border: none;
   border-radius: var(--astra-radius-md);
-  background: var(--astra-surface);
-  transition: all 0.15s ease;
+  background: color-mix(in oklch, white 7%, transparent);
+  transition: background 0.1s;
+}
+
+.url-input-wrapper:hover {
+  background: color-mix(in oklch, white 10%, transparent);
 }
 
 .url-input-wrapper:focus-within {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in oklch, white 9%, transparent);
+  outline: 0.5px solid color-mix(in srgb, currentColor 15%, transparent);
+  outline-offset: -1px;
 }
 
 .security-icon {
@@ -547,18 +559,24 @@ select,
   padding: 8px 10px;
   border-radius: var(--astra-radius-md);
   cursor: pointer;
-  transition: background 0.1s ease, transform 0.1s;
+  transition: background-color 0.1s, transform 0.12s;
   position: relative;
   border: none;
   margin-bottom: 1px;
+  filter: grayscale(0.4);
+  opacity: 0.75;
 }
 
 .tab:hover {
-  background: var(--astra-hover-bg);
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  filter: grayscale(0);
+  opacity: 1;
 }
 
 .tab.active {
-  background: var(--astra-active-bg);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  filter: grayscale(0);
+  opacity: 1;
 }
 
 .tab:active {
@@ -953,7 +971,7 @@ select,
   display: flex;
   align-items: center;
   padding: 8px var(--astra-toolbox-padding);
-  border-top: 1px solid var(--astra-border);
+  border-top: 0.5px solid color-mix(in srgb, currentColor 8%, transparent);
   flex-shrink: 0;
   gap: 4px;
 }
@@ -969,17 +987,21 @@ select,
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s, transform 0.12s;
   flex-shrink: 0;
 }
 
 .bottom-bar-settings:hover {
-  background: var(--astra-hover-bg);
+  background: color-mix(in srgb, currentColor 8%, transparent);
   color: var(--astra-text);
 }
 
+.bottom-bar-settings:active {
+  transform: scale(var(--astra-press-scale));
+}
+
 .bottom-bar-settings.active {
-  background: rgba(var(--astra-primary-rgb), 0.12);
+  background: color-mix(in srgb, var(--astra-primary) 15%, transparent);
   color: #a5b4fc;
 }
 
@@ -1017,8 +1039,11 @@ select,
 .space-icon:hover {
   filter: grayscale(0);
   opacity: 1;
-  background: var(--astra-hover-bg);
-  transform: scale(1.1);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.space-icon:active {
+  transform: scale(var(--astra-press-scale));
 }
 
 .space-icon.active {
@@ -1123,19 +1148,23 @@ select,
   padding: 11px 14px;
   border: none;
   border-radius: var(--astra-radius-md);
-  background: var(--astra-surface);
+  background: color-mix(in oklch, white 5%, transparent);
   color: var(--astra-text);
   font-size: 13px;
-  font-weight: 450;
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s, transform 0.12s;
   text-align: left;
   width: 100%;
 }
 
 .settings-quick-btn:hover {
-  background: var(--astra-surface-hover);
+  background: color-mix(in oklch, white 9%, transparent);
+}
+
+.settings-quick-btn:active {
+  transform: scale(var(--astra-press-scale));
 }
 
 .settings-quick-btn svg {
@@ -1182,8 +1211,8 @@ select,
 
 .find-bar {
   padding: 8px var(--astra-toolbox-padding);
-  background: rgba(var(--astra-primary-rgb), 0.04);
-  border-bottom: 1px solid rgba(var(--astra-primary-rgb), 0.1);
+  background: color-mix(in srgb, var(--astra-primary) 4%, transparent);
+  border-bottom: 0.5px solid color-mix(in srgb, var(--astra-primary) 12%, transparent);
   flex-shrink: 0;
 }
 
@@ -1195,14 +1224,15 @@ select,
 
 .find-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in oklch, white 7%, transparent);
+  border: none;
   border-radius: var(--astra-radius-md);
   color: #fff;
   padding: 8px 12px;
   outline: none;
   font-size: 13px;
   font-family: inherit;
+  font-weight: 500;
 }
 
 .find-count {
