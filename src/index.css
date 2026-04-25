@@ -138,7 +138,7 @@ select,
 
 /* Title bar drag area */
 .sidebar-drag-area {
-  height: 30px;
+  height: 6px;
   -webkit-app-region: drag;
   flex-shrink: 0;
 }
@@ -208,8 +208,25 @@ select,
 
 .nav-buttons {
   display: flex;
-  gap: 4px;
   align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.nav-group-left,
+.nav-group-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@keyframes spinOnce {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.nav-refresh-btn:active svg {
+  animation: spinOnce 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-btn {

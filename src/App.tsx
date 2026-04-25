@@ -433,10 +433,39 @@ const App: React.FC = () => {
       {/* URL Bar */}
       <div className="url-bar">
         <div className="nav-buttons">
-          <button className="nav-btn" title="Back" onClick={() => window.astra.goBack()}>←</button>
-          <button className="nav-btn" title="Forward" onClick={() => window.astra.goForward()}>→</button>
-          <button className="nav-btn" title="Refresh" onClick={() => window.astra.refresh()}>↻</button>
-          {zoomLevel !== 100 && <span className="zoom-indicator">{zoomLevel}%</span>}
+          {/* Left group: three-dot menu + sidebar toggle */}
+          <div className="nav-group-left">
+            <button className="nav-btn" title="Menu" id="nav-menu-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+              </svg>
+            </button>
+            <button className="nav-btn nav-sidebar-toggle" title="Toggle sidebar" onClick={() => window.astra.toggleCompactMode()}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Right group: back, forward, refresh */}
+          <div className="nav-group-right">
+            {zoomLevel !== 100 && <span className="zoom-indicator">{zoomLevel}%</span>}
+            <button className="nav-btn" title="Back" onClick={() => window.astra.goBack()}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+            </button>
+            <button className="nav-btn" title="Forward" onClick={() => window.astra.goForward()}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+            <button className="nav-btn nav-refresh-btn" title="Refresh" onClick={() => window.astra.refresh()}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <form onSubmit={handleNavigate} className="url-form">
           <div className="url-input-wrapper">
