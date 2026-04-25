@@ -207,10 +207,10 @@ select,
    ========================================================== */
 
 .url-bar {
-  padding: 0 var(--astra-toolbox-padding) 6px;
+  padding: 0 var(--astra-toolbox-padding) 4px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -272,68 +272,106 @@ select,
   border-radius: 6px;
 }
 
+/* === Zen urlbar === */
+
 .url-form {
   width: 100%;
   position: relative;
+  /* Zen leaves space for the breakout shadow */
+  padding: 1px;
 }
 
+/* Default state — very subtle pill, like Zen's .urlbar-background */
 .url-input-wrapper {
   display: flex;
   align-items: center;
   border: none;
-  border-radius: var(--astra-radius-md);
+  border-radius: 8px;
   background: color-mix(in oklch, white 7%, transparent);
-  transition: background 0.1s;
+  transition: background 0.1s ease, box-shadow 0.15s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .url-input-wrapper:hover {
   background: color-mix(in oklch, white 10%, transparent);
 }
 
+/* Focus — Zen's breakout-extend: big shadow, lighter bg, outline */
 .url-input-wrapper:focus-within {
-  background: color-mix(in oklch, white 9%, transparent);
-  outline: 0.5px solid color-mix(in srgb, currentColor 15%, transparent);
-  outline-offset: -1px;
+  background: color-mix(in srgb, #111 96%, var(--astra-primary) 4%);
+  box-shadow:
+    0 8px 40px -4px rgba(0, 0, 0, 0.7),
+    0 0 0 0.5px color-mix(in srgb, white 18%, transparent);
+  border-radius: 10px;
+  outline: none;
 }
 
+/* Security icon — Zen gives it a rounded pill bg when it's chromeUI */
 .security-icon {
-  padding-left: 10px;
-  font-size: 12px;
-  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px;
+  padding: 5px;
+  font-size: 11px;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  opacity: 0.7;
+  transition: opacity 0.1s, background 0.1s;
+  flex-shrink: 0;
 }
 
 .security-icon.secure {
   color: var(--astra-success);
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
+.security-icon.insecure {
+  opacity: 0.45;
+}
+
+/* Input — fw:500 like Zen's .urlbar-input-box */
 .url-input {
   flex: 1;
-  padding: 8px 8px;
+  padding: 9px 6px;
   border: none;
   background: transparent;
-  color: #fff;
-  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 500;
   font-family: inherit;
   outline: none;
   min-width: 0;
+  letter-spacing: 0.01em;
 }
 
+/* Bookmark icon — Zen hides page-actions until hover (opacity: 0 → 1) */
 .bookmark-btn {
   border: none;
   background: transparent;
   color: var(--astra-text-muted);
-  font-size: 16px;
+  font-size: 15px;
   cursor: pointer;
-  padding: 6px 10px;
-  transition: all 0.15s ease;
+  padding: 5px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.url-input-wrapper:hover .bookmark-btn,
+.url-input-wrapper:focus-within .bookmark-btn {
+  opacity: 1;
 }
 
 .bookmark-btn:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
   color: #fbbf24;
 }
 
 .bookmark-btn.bookmarked {
+  opacity: 1;
   color: #fbbf24;
 }
 
