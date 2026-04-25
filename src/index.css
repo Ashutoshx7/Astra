@@ -127,12 +127,18 @@
   font-family: 'Outfit', -apple-system, system-ui, sans-serif;
   background: var(--astra-bg);
   color: var(--astra-text);
+  /* Width driven entirely by CSS variable — never touch element.style.width */
+  width: var(--astra-sidebar-width, 300px);
+  min-width: var(--astra-sidebar-width, 300px);
+  max-width: var(--astra-sidebar-width, 300px);
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   user-select: none;
   position: relative;
+  /* contain: size prevents resize from triggering full-page reflow */
+  contain: size;
 }
 
 button,
@@ -155,51 +161,57 @@ select,
    SIDEBAR RESIZE HANDLE
    ========================================================== */
 
+/* === Zen-style sidebar splitter ===
+ *
+ * Zen's #zen-sidebar-splitter:
+ * - position: absolute, top:0, right:0 (or left:0 for right-side)
+ * - width: var(--zen-element-separation)  — the hit zone is wider than visual
+ * - transparent background, cursor: ew-resize
+ * - ::before pseudo draws a short pill (50px tall, 2px wide)
+ *   that only appears on hover, using the accent color
+ */
 .sidebar-resize-handle {
   position: absolute;
   top: 0;
   right: 0;
-  width: 5px;
+  /* Wide hit zone, transparent — exactly like Zen */
+  width: var(--zen-element-sep, 8px);
   height: 100%;
-  cursor: col-resize;
+  cursor: ew-resize;
   z-index: 200;
-  transition: background 0.2s ease, width 0.15s ease;
+  background: transparent;
+  border-radius: 14px;
+  transition: background 0.2s ease;
 }
 
-.sidebar-resize-handle::after {
+/* Pill indicator — hidden by default, fades in on hover */
+.sidebar-resize-handle::before {
   content: '';
   position: absolute;
   top: 50%;
-  right: 0;
-  transform: translateY(-50%);
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 2px;
-  height: 40px;
+  height: 50px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.08);
-  transition: all 0.2s ease;
+  background: var(--astra-primary);
   opacity: 0;
+  transition: opacity 0.1s ease;
+  pointer-events: none;
 }
 
-.sidebar-resize-handle:hover {
-  width: 6px;
-  background: rgba(var(--astra-primary-rgb), 0.08);
-}
-
-.sidebar-resize-handle:hover::after {
+.sidebar-resize-handle:hover::before {
   opacity: 1;
-  height: 48px;
-  background: rgba(var(--astra-primary-rgb), 0.4);
 }
 
 .sidebar-resize-handle.active {
-  width: 6px;
-  background: rgba(var(--astra-primary-rgb), 0.12);
+  background: color-mix(in srgb, var(--astra-primary) 8%, transparent);
 }
 
-.sidebar-resize-handle.active::after {
+.sidebar-resize-handle.active::before {
   opacity: 1;
-  height: 56px;
-  background: rgba(var(--astra-primary-rgb), 0.6);
+  background: var(--astra-primary);
+  height: 64px;
 }
 
 /* ==========================================================
