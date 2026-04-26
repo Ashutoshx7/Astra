@@ -583,30 +583,48 @@ export class TabManager {
   /**
    * Layout with a custom sidebar width (resize IPC / CompactMode).
    *
-   * Updates BOTH views in the same JS tick. Since sidebar extends into
-   * the gap area and content starts right where sidebar ends (zero gap),
-   * GPU compositor desync between frames is completely invisible.
+   * DIRECTION-AWARE setBounds order:
+   * - SHRINKING: move content LEFT first (slides under sidebar via z-order),
+   *   then shrink sidebar → content is already in position, no gap visible.
+   * - EXPANDING: grow sidebar first (covers the gap via z-order),
+   *   then move content RIGHT → sidebar covers content's old position.
    */
   layoutWithSidebarWidth(sidebarWidth: number): void {
+    const oldWidth = this.sidebarWidth;
     this.sidebarWidth = Math.max(
       CONFIG.SIDEBAR_MIN_WIDTH,
       Math.min(CONFIG.SIDEBAR_MAX_WIDTH, sidebarWidth),
     );
     const { width, height } = this.mainWindow.getContentBounds();
     const g = TabManager.CONTENT_INSET;
-
-    // Both setBounds in same tick — and they share an edge, so no visible seam
-    this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
+    const shrinking = this.sidebarWidth < oldWidth;
 
     const activeTab = this.getActiveTab();
-    if (activeTab) {
-      activeTab.view.setBounds({
-        x: this.sidebarWidth + g,
-        y: g,
-        width: width - this.sidebarWidth - g * 2,
-        height: height - g * 2,
-      });
-      try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
+
+    if (shrinking) {
+      // Content moves LEFT first (tucks under sidebar), then sidebar shrinks
+      if (activeTab) {
+        activeTab.view.setBounds({
+          x: this.sidebarWidth + g,
+          y: g,
+          width: width - this.sidebarWidth - g * 2,
+          height: height - g * 2,
+        });
+        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch {}
+      }
+      this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
+    } else {
+      // Sidebar expands first (covers gap), then content moves RIGHT
+      this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
+      if (activeTab) {
+        activeTab.view.setBounds({
+          x: this.sidebarWidth + g,
+          y: g,
+          width: width - this.sidebarWidth - g * 2,
+          height: height - g * 2,
+        });
+        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch {}
+      }
     }
   }
 }
