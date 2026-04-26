@@ -22,7 +22,6 @@ import SettingsPanel from './components/SettingsPanel';
 import DownloadsSection from './components/DownloadsSection';
 import BottomBar from './components/BottomBar';
 import SpaceContextMenu from './components/SpaceContextMenu';
-import WindowControls from './components/WindowControls';
 
 // --------------------------------------------------
 // App — lean orchestrator
@@ -178,9 +177,8 @@ const App: React.FC = () => {
       ref={sidebarRef}
       onClick={() => setSpaceContextMenu(null)}
     >
-      {/* Window drag area + controls */}
+      {/* Window drag area */}
       <div className="sidebar-drag-area" />
-      <WindowControls />
 
       {/* URL bar + toolbar */}
       <UrlBar

@@ -67,9 +67,14 @@ function createWindow(): void {
     minHeight: CONFIG.WINDOW.MIN_HEIGHT,
     title: CONFIG.WINDOW.TITLE,
     backgroundColor: CONFIG.WINDOW.BG_COLOR,
-    // No native titleBar — we render custom Zen-style window controls
-    // that auto-hide behind the content area on hover.
     titleBarStyle: 'hidden',
+    // Native overlay puts minimize/maximize/close at WINDOW's top-right corner
+    // (over the content area — exactly like Zen on Windows)
+    titleBarOverlay: {
+      color: '#00000000',       // Transparent background — blends with content
+      symbolColor: '#999999',   // Muted by default
+      height: 36,
+    },
   });
 
   // Ensure window background is dark — during resize compositor lag,
