@@ -31,6 +31,11 @@ export class TabManager {
   private spaceManager: SpaceManager | null = null;
   private sidebarWidth: number = CONFIG.SIDEBAR_WIDTH;
 
+  // Zen-style floating content card — gap from all edges
+  // This also absorbs the 1-2px async compositing lag during sidebar resize
+  private static readonly CONTENT_GAP = 8;
+  private static readonly CONTENT_RADIUS = 10;
+
   constructor(
     private readonly mainWindow: BaseWindow,
     private readonly sidebarView: WebContentsView,
@@ -530,8 +535,6 @@ export class TabManager {
 
   /**
    * Smart layout — only swaps views when the active tab actually changes.
-   * Before: removeChildView(ALL tabs) + addChildView(active) = O(n) every time
-   * After: removeChildView(previous) + addChildView(active) = O(1)
    */
   private layoutViews(): void {
     const { width, height } = this.mainWindow.getContentBounds();
@@ -539,46 +542,53 @@ export class TabManager {
 
     const activeTab = this.getActiveTab();
 
-    // Only swap if the active tab changed
     if (this.currentlyAttachedTabId !== this.activeTabId) {
-      // Remove the previously attached tab
       if (this.currentlyAttachedTabId) {
         const prevTab = this.findTab(this.currentlyAttachedTabId);
         if (prevTab) {
           try { this.mainWindow.contentView.removeChildView(prevTab.view); } catch { /* ok */ }
         }
       }
-
-      // Attach the new active tab
       if (activeTab) {
         this.mainWindow.contentView.addChildView(activeTab.view);
       }
-
       this.currentlyAttachedTabId = this.activeTabId;
     }
 
-    // Always update bounds (for resize events)
     if (activeTab) {
+      const g = TabManager.CONTENT_GAP;
       activeTab.view.setBounds({
-        x: this.sidebarWidth, y: 0,
-        width: width - this.sidebarWidth, height,
+        x: this.sidebarWidth + g,
+        y: g,
+        width: width - this.sidebarWidth - g * 2,
+        height: height - g * 2,
       });
+      // Rounded card corners — Zen's signature look
+      try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
     }
   }
 
   /**
-   * Layout with a custom sidebar width (used by CompactModeManager).
-   * When compact mode hides/shows the sidebar, we need to adjust tab bounds.
+   * Layout with a custom sidebar width (used by resize IPC and CompactModeManager).
+   * Updates this.sidebarWidth so subsequent layoutViews() calls stay in sync.
    */
   layoutWithSidebarWidth(sidebarWidth: number): void {
+    this.sidebarWidth = Math.max(
+      CONFIG.SIDEBAR_MIN_WIDTH,
+      Math.min(CONFIG.SIDEBAR_MAX_WIDTH, sidebarWidth),
+    );
     const { width, height } = this.mainWindow.getContentBounds();
     const activeTab = this.getActiveTab();
 
     if (activeTab) {
+      const g = TabManager.CONTENT_GAP;
       activeTab.view.setBounds({
-        x: sidebarWidth, y: 0,
-        width: width - sidebarWidth, height,
+        x: this.sidebarWidth + g,
+        y: g,
+        width: width - this.sidebarWidth - g * 2,
+        height: height - g * 2,
       });
+      try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
     }
   }
 }

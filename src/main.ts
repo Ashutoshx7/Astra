@@ -265,14 +265,22 @@ function createWindow(): void {
   // --------------------------------------------------
 
   ipcMain.on(IPC.SIDEBAR_RESIZE, (_e, width: number) => {
+    // Suppress compact-mode hide/show during active drag
+    compactMode.setResizing(true);
+
     tabManager.setSidebarWidth(width);
     const clampedWidth = tabManager.getSidebarWidth();
     const { height } = mainWindow!.getContentBounds();
     sidebarView.setBounds({ x: 0, y: 0, width: clampedWidth, height });
     tabManager.layoutWithSidebarWidth(clampedWidth);
-    // Update CompactModeManager with the new base width
     compactMode.setBaseWidth(clampedWidth);
     sidebarView.webContents.send(IPC.SIDEBAR_WIDTH_CHANGED, clampedWidth);
+
+    // Re-enable compact mode after a short idle (drag likely finished)
+    if ((ipcMain as any)._resizeIdleTimer) clearTimeout((ipcMain as any)._resizeIdleTimer);
+    (ipcMain as any)._resizeIdleTimer = setTimeout(() => {
+      compactMode.setResizing(false);
+    }, 150);
   });
 
   // --------------------------------------------------

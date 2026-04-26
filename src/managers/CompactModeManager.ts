@@ -53,6 +53,8 @@ export class CompactModeManager {
   private static readonly MOUSE_THROTTLE_MS = 16;
   // Dynamic sidebar width (updated via resize)
   private baseWidth = SIDEBAR_WIDTH;
+  // Block compact-mode hide/show while user is dragging the resize handle
+  private resizing = false;
 
   constructor(
     private readonly mainWindow: BaseWindow,
@@ -79,6 +81,11 @@ export class CompactModeManager {
   /** Update base width when sidebar is resized */
   setBaseWidth(width: number): void {
     this.baseWidth = width;
+  }
+
+  /** Call before sidebar drag starts — disables compact-mode hide logic */
+  setResizing(resizing: boolean): void {
+    this.resizing = resizing;
   }
 
   /**
@@ -117,6 +124,9 @@ export class CompactModeManager {
     this.lastMouseMoveTime = now;
 
     this.lastMouseX = x;
+
+    // Don't trigger hide/show while user is dragging the resize handle
+    if (this.resizing) return;
 
     if (this.state.mode === 'full') return;
 

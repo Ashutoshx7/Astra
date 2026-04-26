@@ -127,18 +127,14 @@
   font-family: 'Outfit', -apple-system, system-ui, sans-serif;
   background: var(--astra-bg);
   color: var(--astra-text);
-  /* Width driven entirely by CSS variable — never touch element.style.width */
-  width: var(--astra-sidebar-width, 300px);
-  min-width: var(--astra-sidebar-width, 300px);
-  max-width: var(--astra-sidebar-width, 300px);
+  /* Always fill the BrowserView — Electron main process controls actual width */
+  width: 100%;
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   user-select: none;
   position: relative;
-  /* contain: size prevents resize from triggering full-page reflow */
-  contain: size;
 }
 
 button,
