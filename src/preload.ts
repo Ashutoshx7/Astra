@@ -76,6 +76,11 @@ contextBridge.exposeInMainWorld('astra', {
   // Sidebar Resize
   resizeSidebar: (width: number) => ipcRenderer.send('sidebar:resize', width),
 
+  // Window Controls (custom Zen-style — replaces native titleBarOverlay)
+  minimizeWindow: () => ipcRenderer.send('window:minimize'),
+  maximizeWindow: () => ipcRenderer.send('window:maximize'),
+  closeWindow: () => ipcRenderer.send('window:close'),
+
   // Event listeners (Main → Sidebar)
   onTabsUpdated: (cb: Function) => ipcRenderer.on('tabs-updated', (_e: any, d: any) => cb(d)),
   onUrlChanged: (cb: Function) => ipcRenderer.on('url-changed', (_e: any, url: string) => cb(url)),
@@ -96,4 +101,5 @@ contextBridge.exposeInMainWorld('astra', {
   onSplitState: (cb: Function) => ipcRenderer.on('split:state', (_e: any, d: any) => cb(d)),
   onPrivacyState: (cb: Function) => ipcRenderer.on('privacy:state', (_e: any, d: any) => cb(d)),
   onSidebarWidthChanged: (cb: Function) => ipcRenderer.on('sidebar:width-changed', (_e: any, w: number) => cb(w)),
+  onMaximizedChanged: (cb: Function) => ipcRenderer.on('window:maximized', (_e: any, isMax: boolean) => cb(isMax)),
 });

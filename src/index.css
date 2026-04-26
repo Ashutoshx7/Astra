@@ -152,11 +152,76 @@ select,
   -webkit-app-region: no-drag;
 }
 
-/* Title bar drag area — minimal like Zen */
+/* Title bar drag area — taller to support window dragging + controls zone */
 .sidebar-drag-area {
-  height: 4px;
+  height: 12px;
   -webkit-app-region: drag;
   flex-shrink: 0;
+}
+
+/* ==========================================================
+   WINDOW CONTROLS (Zen-style auto-hide)
+   
+   Zen's approach (zen-browser-ui.css, line 237):
+     &:not([zen-has-hover="true"]) > .titlebar-buttonbox { opacity: 0; }
+   
+   Our implementation:
+   - Positioned absolute in top-right of sidebar
+   - opacity: 0 by default, appears on hover
+   - Buttons float OVER the sidebar content
+   - Close button highlights red on hover (Windows convention)
+   ========================================================== */
+
+.window-controls {
+  position: absolute;
+  top: 0;
+  right: 8px; /* Inside the padding-right gap area */
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 32px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+/* Show on sidebar hover — exactly like Zen's zen-has-hover */
+.sidebar:hover .window-controls {
+  opacity: 1;
+  transition-delay: 0.15s; /* Zen uses 0.2s delay */
+}
+
+/* Keep visible while hovering the buttons themselves */
+.window-controls:hover {
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+.window-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--astra-text-muted, #999);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+  padding: 0;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--astra-text, #e0e0e0);
+}
+
+.window-control-btn.close-btn:hover {
+  background: #e81123;
+  color: #fff;
 }
 
 /* ==========================================================

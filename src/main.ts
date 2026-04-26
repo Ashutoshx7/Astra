@@ -67,12 +67,9 @@ function createWindow(): void {
     minHeight: CONFIG.WINDOW.MIN_HEIGHT,
     title: CONFIG.WINDOW.TITLE,
     backgroundColor: CONFIG.WINDOW.BG_COLOR,
+    // No native titleBar — we render custom Zen-style window controls
+    // that auto-hide behind the content area on hover.
     titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: CONFIG.WINDOW.BG_COLOR,
-      symbolColor: '#e0e0e0',
-      height: 40,
-    },
   });
 
   // Ensure window background is dark — during resize compositor lag,
@@ -265,6 +262,20 @@ function createWindow(): void {
   });
   ipcMain.on('compact:lock-popup', () => compactMode.lockForPopup());
   ipcMain.on('compact:unlock-popup', () => compactMode.unlockFromPopup());
+
+  // --------------------------------------------------
+  // Window Controls IPC (custom Zen-style buttons)
+  // --------------------------------------------------
+  ipcMain.on('window:minimize', () => mainWindow?.minimize());
+  ipcMain.on('window:maximize', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  ipcMain.on('window:close', () => mainWindow?.close());
+  // Send maximize state back to renderer for button icon toggle
+  mainWindow.on('maximize', () => sidebarView.webContents.send('window:maximized', true));
+  mainWindow.on('unmaximize', () => sidebarView.webContents.send('window:maximized', false));
 
   // --------------------------------------------------
   // Sidebar Resize IPC

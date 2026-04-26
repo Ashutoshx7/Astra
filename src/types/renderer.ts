@@ -120,6 +120,10 @@ declare global {
       closeGlance: () => void;
       expandGlance: () => void;
       resizeSidebar: (width: number) => void;
+      // Window Controls (Zen-style custom buttons)
+      minimizeWindow: () => void;
+      maximizeWindow: () => void;
+      closeWindow: () => void;
       onTabsUpdated: (cb: (data: any) => void) => void;
       onUrlChanged: (cb: (url: string) => void) => void;
       onFocusUrlBar: (cb: () => void) => void;
@@ -137,6 +141,7 @@ declare global {
       onGlanceOpened: (cb: (data: { url: string }) => void) => void;
       onGlanceClosed: (cb: () => void) => void;
       onSidebarWidthChanged: (cb: (width: number) => void) => void;
+      onMaximizedChanged: (cb: (isMaximized: boolean) => void) => void;
     };
   }
 }
