@@ -68,13 +68,8 @@ function createWindow(): void {
     title: CONFIG.WINDOW.TITLE,
     backgroundColor: CONFIG.WINDOW.BG_COLOR,
     titleBarStyle: 'hidden',
-    // Native overlay puts minimize/maximize/close at WINDOW's top-right corner
-    // (over the content area — exactly like Zen on Windows)
-    titleBarOverlay: {
-      color: '#1b1b1b',         // Match content/window background — blends seamlessly
-      symbolColor: '#808080',   // Subtle, muted icons
-      height: 32,
-    },
+    // No titleBarOverlay — doesn't work on Linux.
+    // Custom Zen-style controls: hidden behind content, revealed on hover.
   });
 
   // Ensure window background is dark — during resize compositor lag,
@@ -105,7 +100,9 @@ function createWindow(): void {
   // Managers
   // --------------------------------------------------
 
-  tabManager = new TabManager(mainWindow, sidebarView, database);
+  const preloadPath = path.join(__dirname, 'preload.js');
+
+  tabManager = new TabManager(mainWindow, sidebarView, database, preloadPath);
   spaceManager = new SpaceManager(database, sidebarView, tabManager);
 
   // CompactMode: controls sidebar auto-hide with layout callback
@@ -281,6 +278,25 @@ function createWindow(): void {
   // Send maximize state back to renderer for button icon toggle
   mainWindow.on('maximize', () => sidebarView.webContents.send('window:maximized', true));
   mainWindow.on('unmaximize', () => sidebarView.webContents.send('window:maximized', false));
+  // --------------------------------------------------
+  // Zen-style toolbar reveal — IPC-driven
+  //
+  // cursor polling doesn't work on Wayland (security restrictions).
+  // Instead, the sidebar renderer sends IPC when the drag area is hovered.
+  // Main process shifts the content BrowserView accordingly.
+  // --------------------------------------------------
+  let toolbarCollapseTimer: ReturnType<typeof setTimeout> | null = null;
+  ipcMain.on('toolbar:expand', () => {
+    if (toolbarCollapseTimer) { clearTimeout(toolbarCollapseTimer); toolbarCollapseTimer = null; }
+    tabManager.setToolbarExpanded(true);
+  });
+  ipcMain.on('toolbar:collapse', () => {
+    if (toolbarCollapseTimer) return;
+    toolbarCollapseTimer = setTimeout(() => {
+      tabManager.setToolbarExpanded(false);
+      toolbarCollapseTimer = null;
+    }, 300);
+  });
 
   // --------------------------------------------------
   // Sidebar Resize IPC
