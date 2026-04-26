@@ -74,6 +74,10 @@ export class TabManager {
     const id = this.nextId();
     const view = new WebContentsView();
 
+    // Set dark background BEFORE page loads — prevents white flash during
+    // resize compositor lag when sidebar shrinks and content hasn't moved yet.
+    view.setBackgroundColor(CONFIG.WINDOW.BG_COLOR);
+
     // Performance: do NOT add to contentView yet — only attach when the tab becomes active.
     // Adding every tab immediately wastes GPU compositor memory for background tabs.
     // The view IS created so webContents starts loading in the background (preloading).

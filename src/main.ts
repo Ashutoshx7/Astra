@@ -75,10 +75,10 @@ function createWindow(): void {
     },
   });
 
-  // CRITICAL: BaseWindow's contentView has a white background by default.
-  // During resize compositor lag, the gap between views flashes this color.
-  // Setting it to match the sidebar background makes any lag invisible.
-  mainWindow.contentView.setBackgroundColor(CONFIG.WINDOW.BG_COLOR);
+  // Ensure window background is dark — during resize compositor lag,
+  // any gap between BrowserViews flashes the window background color.
+  // Belt-and-suspenders: set on both BaseWindow AND each WebContentsView.
+  mainWindow.setBackgroundColor(CONFIG.WINDOW.BG_COLOR);
 
   const sidebarView = new WebContentsView({
     webPreferences: {
@@ -88,6 +88,7 @@ function createWindow(): void {
       nodeIntegration: false,
     },
   });
+  sidebarView.setBackgroundColor(CONFIG.WINDOW.BG_COLOR);
   mainWindow.contentView.addChildView(sidebarView);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
