@@ -71,9 +71,9 @@ function createWindow(): void {
     // Native overlay puts minimize/maximize/close at WINDOW's top-right corner
     // (over the content area — exactly like Zen on Windows)
     titleBarOverlay: {
-      color: '#00000000',       // Transparent background — blends with content
-      symbolColor: '#999999',   // Muted by default
-      height: 36,
+      color: '#1b1b1b',         // Match content/window background — blends seamlessly
+      symbolColor: '#808080',   // Subtle, muted icons
+      height: 32,
     },
   });
 
