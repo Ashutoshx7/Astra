@@ -1,0 +1,364 @@
+/* Variables */
+
+$bg-1: #1a1919;
+$bg-2: #0d0c0c;
+
+$keyboard-1: #FFFFFB;
+$keyboard-2: #EAE7E5;
+$keyboard-3: #9C9C9C;
+
+$key-1: #FFFFFB;
+$key-2: #b8b8b8;
+$key-3: #838383;
+
+$blue-1: #3b82f6;
+/* Bright blue for screen/tops */
+$blue-2: #1700E3;
+/* Deep electric blue for sides */
+$blue-3: #0f0099;
+/* Darker blue for fronts */
+
+$orange-1: #a855f7;
+/* Vibrant purple for accent keys */
+$orange-2: #7e22ce;
+$orange-3: #3b0764;
+
+$screen-1: #4D4A5D;
+
+.keyboard-container {
+    * {
+        transform-style: preserve-3d;
+    }
+
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+
+    font-family: sans-serif;
+    font-weight: bolder;
+    color: rgba($key-1, .7);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.main {
+    width: 800px;
+    height: 600px;
+    position: relative;
+    cursor: pointer;
+    transform: scale(0.8);
+    transform-origin: bottom left;
+}
+
+.flex {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.face {
+    position: absolute;
+}
+
+/*Base*/
+/*=================================*/
+/*=================================*/
+
+$width-kb: 500px;
+$height-kb: 160px;
+$depth-kb: 25px;
+
+.screen {
+    width: $width-kb / 1.65;
+    height: $height-kb * 1.5;
+    transform:
+        translateZ(100px) translateY(-200px) translateZ(50px) rotateX(270deg);
+    background-color: $blue-1;
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    overflow: hidden;
+    text-transform: none;
+    letter-spacing: 1px;
+    color: #fff;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+
+    box-shadow:
+        0 0 5px rgba($blue-1, .8),
+        0 0 10px rgba($blue-1, .7),
+        0 0 15px rgba($blue-1, .6),
+        0 0 20px rgba($blue-1, .5),
+        0 0 40px rgba($blue-1, .4),
+        0 0 60px rgba($blue-1, .3);
+    animation: screen 1s ease-in alternate infinite;
+}
+
+.keyboard {
+    width: $width-kb;
+    height: $height-kb;
+    transform:
+        perspective(10000px) rotateX(50deg) rotateZ(-25deg);
+
+    &__front {
+        width: $width-kb;
+        height: $depth-kb;
+        transform: rotateX(-90deg) translateZ($height-kb / 2);
+        background-color: $keyboard-3;
+    }
+
+    &__back {
+        width: $width-kb;
+        height: $depth-kb;
+        transform: rotateX(90deg) translateZ($height-kb / 2);
+        background-color: $keyboard-1;
+    }
+
+    &__top {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        width: $width-kb;
+        height: $height-kb;
+        transform: rotateY(0deg) translateZ($depth-kb / 2);
+        background-image: linear-gradient(to bottom, lighten($blue-1, 10), lighten($bg-1, 10));
+    }
+
+    &__bottom {
+        width: $width-kb;
+        height: $height-kb;
+        transform: rotateY(180deg) translateZ($depth-kb / 2);
+        background-color: $keyboard-2;
+
+        box-shadow:
+            -20px 40px 0 $bg-2,
+            0px 40px 0 $bg-2,
+            5px -0px 0 $bg-2,
+            5px 40px 0 $bg-2 ;
+    }
+
+    &__right {
+        width: $depth-kb;
+        height: $height-kb;
+        transform: rotateY(90deg) translateZ($width-kb / 2);
+        background-color: $keyboard-1;
+    }
+
+    &__left {
+        width: $depth-kb;
+        height: $height-kb;
+        transform: rotateY(90deg) translateZ(-$width-kb / 2);
+        background-color: $keyboard-2;
+    }
+}
+
+/*=================================*/
+/*=================================*/
+$width-ky: 30px;
+$height-ky: 27px;
+$depth-ky: 15px;
+
+.keys {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    width: 100%;
+    transform: translateZ($depth-ky / 2);
+    padding: 0 2px;
+}
+
+.key {
+    width: $width-ky;
+    height: $height-ky;
+
+    &--w2 {
+        width: $width-ky * 2;
+    }
+
+    &--w3 {
+        width: $width-ky * 3;
+    }
+
+    &--w6 {
+        width: $width-ky * 6.5;
+    }
+
+    transition: .05s ease;
+
+
+    &__front {
+        width: $width-ky;
+        height: $depth-ky;
+        transform: rotateX(-90deg) translateZ($height-ky / 2);
+        background-color: $key-3;
+
+        &--w2 {
+            width: $width-ky * 2;
+        }
+
+        &--w3 {
+            width: $width-ky * 3;
+        }
+
+        &--w6 {
+            width: $width-ky * 6.5;
+        }
+    }
+
+    &__back {
+        width: $width-ky;
+        height: $depth-ky;
+        transform: rotateX(90deg) translateZ($height-ky / 2);
+        background-color: $key-1;
+
+        &--w2 {
+            width: $width-ky * 2;
+        }
+
+        &--w3 {
+            width: $width-ky * 3;
+        }
+
+        &--w6 {
+            width: $width-ky * 6.5;
+        }
+    }
+
+    &__top {
+        width: $width-ky;
+        height: $height-ky;
+        transform: rotateY(0deg) translateZ($depth-ky / 2);
+        background-color: $key-1;
+        background-image: linear-gradient(to bottom, lighten($blue-1, 15), $key-1);
+
+
+        &--w2 {
+            width: $width-ky * 2;
+        }
+
+        &--w3 {
+            width: $width-ky * 3;
+        }
+
+        &--w6 {
+            width: $width-ky * 6.5;
+        }
+    }
+
+    &__bottom {
+        width: $width-ky;
+        height: $height-ky;
+        transform: rotateY(180deg) translateZ($depth-ky / 2);
+        background-color: $key-3;
+
+        &--w2 {
+            width: $width-ky * 2;
+        }
+
+        &--w3 {
+            width: $width-ky * 3;
+        }
+
+        &--w6 {
+            width: $width-ky * 6.5;
+        }
+    }
+
+    &__right {
+        width: $depth-ky;
+        height: $height-ky;
+        transform: rotateY(90deg) translateZ($width-ky / 2);
+        background-color: $key-3;
+
+        &--w2 {
+            transform: rotateY(90deg) translateZ($width-ky);
+        }
+
+        &--w3 {
+            transform: rotateY(90deg) translateZ($width-ky * 1.5);
+        }
+
+        &--w6 {
+            transform: rotateY(90deg) translateZ($width-ky * 3.25);
+        }
+    }
+
+    &__left {
+        width: $depth-ky;
+        height: $height-ky;
+        transform: rotateY(90deg) translateZ(-$width-ky / 2);
+        background-image: linear-gradient(to bottom, lighten($key-2 , 5), $key-2);
+
+        &--w2 {
+            transform: rotateY(90deg) translateZ(-$width-ky);
+        }
+
+        &--w3 {
+            transform: rotateY(90deg) translateZ(-$width-ky * 1.5);
+        }
+
+        &--w6 {
+            transform: rotateY(90deg) translateZ(-$width-ky * 3.25);
+        }
+    }
+}
+
+/*=================================*/
+/*=================================*/
+.face--key-b1 {
+    background: $blue-1;
+}
+
+.face--key-b2 {
+    background-image: linear-gradient(to bottom, lighten($blue-2 , 5), $blue-2);
+}
+
+.face--key-b3 {
+    background-color: $blue-3;
+}
+
+.face--key-o1 {
+    background: $orange-1;
+}
+
+.face--key-o2 {
+    background-image: linear-gradient(to bottom, lighten($orange-2 , 5), $orange-2);
+}
+
+.face--key-o3 {
+    background-color: $orange-3;
+}
+
+.key--down {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform: translateZ(-5px);
+    transition: .05s ease;
+
+    >.key__top {
+        background: lighten($orange-1, 10);
+    }
+}
+
+/*=================================*/
+/*=================================*/
+@keyframes screen {
+
+    0%,
+    90%,
+    96% {
+        background-color: $blue-1
+    }
+
+    93%,
+    100% {
+        background-color: rgba($blue-2, .8);
+    }
+}
