@@ -9,7 +9,7 @@ export default function GithubStarButton() {
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Do not prevent default so it still opens the GitHub link in new tab.
     // e.preventDefault(); 
-    
+
     const button = buttonRef.current;
     if (!button || button.classList.contains('animated')) {
       return;
@@ -79,9 +79,9 @@ export default function GithubStarButton() {
   };
 
   return (
-    <a 
-      href="https://github.com/Ashutoshx7/Astra" 
-      target="_blank" 
+    <a
+      href="https://github.com/Ashutoshx7/Astra"
+      target="_blank"
       rel="noopener noreferrer"
       className="favorite-button !h-10 !min-w-[140px]"
       ref={buttonRef}
@@ -90,7 +90,7 @@ export default function GithubStarButton() {
       <div className="icon z-10">
         <div className="star"></div>
       </div>
-      <span className="z-10 ml-1">Star on GitHub</span>
+      <span className="z-10 ml-1">Star us on GitHub</span>
     </a>
   );
 }
