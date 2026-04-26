@@ -124,6 +124,8 @@ declare global {
       minimizeWindow: () => void;
       maximizeWindow: () => void;
       closeWindow: () => void;
+      toolbarExpand: () => void;
+      toolbarCollapse: () => void;
       onTabsUpdated: (cb: (data: any) => void) => void;
       onUrlChanged: (cb: (url: string) => void) => void;
       onFocusUrlBar: (cb: () => void) => void;
@@ -142,6 +144,7 @@ declare global {
       onGlanceClosed: (cb: () => void) => void;
       onSidebarWidthChanged: (cb: (width: number) => void) => void;
       onMaximizedChanged: (cb: (isMaximized: boolean) => void) => void;
+      onToolbarExpanded: (cb: (expanded: boolean) => void) => void;
     };
   }
 }

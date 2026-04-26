@@ -81,6 +81,10 @@ contextBridge.exposeInMainWorld('astra', {
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
 
+  // Toolbar reveal (Zen-style content shift)
+  toolbarExpand: () => ipcRenderer.send('toolbar:expand'),
+  toolbarCollapse: () => ipcRenderer.send('toolbar:collapse'),
+
   // Event listeners (Main → Sidebar)
   onTabsUpdated: (cb: Function) => ipcRenderer.on('tabs-updated', (_e: any, d: any) => cb(d)),
   onUrlChanged: (cb: Function) => ipcRenderer.on('url-changed', (_e: any, url: string) => cb(url)),
@@ -102,4 +106,5 @@ contextBridge.exposeInMainWorld('astra', {
   onPrivacyState: (cb: Function) => ipcRenderer.on('privacy:state', (_e: any, d: any) => cb(d)),
   onSidebarWidthChanged: (cb: Function) => ipcRenderer.on('sidebar:width-changed', (_e: any, w: number) => cb(w)),
   onMaximizedChanged: (cb: Function) => ipcRenderer.on('window:maximized', (_e: any, isMax: boolean) => cb(isMax)),
+  onToolbarExpanded: (cb: Function) => ipcRenderer.on('toolbar:expanded', (_e: any, expanded: boolean) => cb(expanded)),
 });
