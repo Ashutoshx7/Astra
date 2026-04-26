@@ -152,11 +152,80 @@ select,
   -webkit-app-region: no-drag;
 }
 
-/* Title bar drag area — minimal like Zen */
-.sidebar-drag-area {
-  height: 8px;
-  -webkit-app-region: drag;
+/* Toolbar trigger — outer container for hover detection.
+   NOT a drag region so mouseenter/mouseleave fire reliably on Linux. */
+.sidebar-toolbar-trigger {
+  height: 20px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  transition: height 0.2s ease;
+  position: relative;
+}
+
+/* Extend hover zone below to catch approaching mouse */
+.sidebar-toolbar-trigger::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -15px;
+  height: 15px;
+  pointer-events: auto;
+}
+
+/* Inner drag handle — fills available space, enables window dragging */
+.sidebar-drag-handle {
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+}
+
+
+
+/* ==========================================================
+   WINDOW CONTROLS (Zen-style — revealed when content shifts)
+   ========================================================== */
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-right: 4px;
+  animation: fadeIn 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.window-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--astra-text-muted, #888);
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.12s ease, color 0.12s ease;
+  padding: 0;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--astra-text, #e0e0e0);
+}
+
+.window-control-btn.close-btn:hover {
+  background: #e81123;
+  color: #fff;
 }
 
 /* ==========================================================
