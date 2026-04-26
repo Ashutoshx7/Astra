@@ -135,6 +135,12 @@
   overflow: hidden;
   user-select: none;
   position: relative;
+  box-sizing: border-box;
+  /* The BrowserView extends 8px past the visual sidebar content.
+     This padding creates the visual gap between sidebar and web content.
+     The gap is INSIDE the sidebar BrowserView, so there's zero gap
+     between BrowserViews = zero GPU compositor desync during resize. */
+  padding-right: 8px;
 }
 
 button,

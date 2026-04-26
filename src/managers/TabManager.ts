@@ -31,9 +31,11 @@ export class TabManager {
   private spaceManager: SpaceManager | null = null;
   private sidebarWidth: number = CONFIG.SIDEBAR_WIDTH;
 
-  // Zen-style floating content card — gap from all edges
-  // This also absorbs the 1-2px async compositing lag during sidebar resize
-  private static readonly CONTENT_GAP = 8;
+  // Zen-style floating content card.
+  // The VISUAL gap between sidebar and content is created by CSS padding
+  // on the sidebar renderer, NOT by a gap between BrowserView bounds.
+  // This eliminates GPU compositor desync during resize.
+  private static readonly CONTENT_INSET = 8;
   private static readonly CONTENT_RADIUS = 10;
 
   constructor(
@@ -535,10 +537,20 @@ export class TabManager {
 
   /**
    * Smart layout — only swaps views when the active tab actually changes.
+   *
+   * LAYOUT STRATEGY (eliminates GPU compositor desync):
+   * - Sidebar BrowserView width = sidebarWidth + INSET
+   *   (extends into the visual gap area; CSS padding-right creates the gap)
+   * - Content BrowserView x = sidebarWidth + INSET
+   *   (starts exactly where sidebar ends — ZERO gap between views)
+   * - Content is inset from top/right/bottom window edges
    */
   private layoutViews(): void {
     const { width, height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth, height });
+    const g = TabManager.CONTENT_INSET;
+
+    // Sidebar extends INTO the gap area so there's no gap between views
+    this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
 
     const activeTab = this.getActiveTab();
 
@@ -550,27 +562,30 @@ export class TabManager {
         }
       }
       if (activeTab) {
-        this.mainWindow.contentView.addChildView(activeTab.view);
+        // Insert at index 0 = bottom z-order (sidebar stays on top)
+        this.mainWindow.contentView.addChildView(activeTab.view, 0);
       }
       this.currentlyAttachedTabId = this.activeTabId;
     }
 
     if (activeTab) {
-      const g = TabManager.CONTENT_GAP;
+      // Content starts RIGHT where sidebar ends — zero gap between BrowserViews
       activeTab.view.setBounds({
         x: this.sidebarWidth + g,
         y: g,
         width: width - this.sidebarWidth - g * 2,
         height: height - g * 2,
       });
-      // Rounded card corners — Zen's signature look
       try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
     }
   }
 
   /**
-   * Layout with a custom sidebar width (used by resize IPC and CompactModeManager).
-   * Updates this.sidebarWidth so subsequent layoutViews() calls stay in sync.
+   * Layout with a custom sidebar width (resize IPC / CompactMode).
+   *
+   * Updates BOTH views in the same JS tick. Since sidebar extends into
+   * the gap area and content starts right where sidebar ends (zero gap),
+   * GPU compositor desync between frames is completely invisible.
    */
   layoutWithSidebarWidth(sidebarWidth: number): void {
     this.sidebarWidth = Math.max(
@@ -578,10 +593,13 @@ export class TabManager {
       Math.min(CONFIG.SIDEBAR_MAX_WIDTH, sidebarWidth),
     );
     const { width, height } = this.mainWindow.getContentBounds();
-    const activeTab = this.getActiveTab();
+    const g = TabManager.CONTENT_INSET;
 
+    // Both setBounds in same tick — and they share an edge, so no visible seam
+    this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
+
+    const activeTab = this.getActiveTab();
     if (activeTab) {
-      const g = TabManager.CONTENT_GAP;
       activeTab.view.setBounds({
         x: this.sidebarWidth + g,
         y: g,

@@ -102,9 +102,9 @@ function createWindow(): void {
 
   // CompactMode: controls sidebar auto-hide with layout callback
   compactMode = new CompactModeManager(mainWindow, sidebarView, (sidebarWidth) => {
-    const { width, height } = mainWindow!.getContentBounds();
-    sidebarView.setBounds({ x: 0, y: 0, width: sidebarWidth, height });
-    // Re-layout the active tab view
+    const { height } = mainWindow!.getContentBounds();
+    // Sidebar extends 8px into gap area (same as TabManager.CONTENT_INSET)
+    sidebarView.setBounds({ x: 0, y: 0, width: sidebarWidth + 8, height });
     tabManager.layoutWithSidebarWidth(sidebarWidth);
   });
 
@@ -265,18 +265,15 @@ function createWindow(): void {
   // --------------------------------------------------
 
   ipcMain.on(IPC.SIDEBAR_RESIZE, (_e, width: number) => {
-    // Suppress compact-mode hide/show during active drag
     compactMode.setResizing(true);
 
     tabManager.setSidebarWidth(width);
     const clampedWidth = tabManager.getSidebarWidth();
-    const { height } = mainWindow!.getContentBounds();
-    sidebarView.setBounds({ x: 0, y: 0, width: clampedWidth, height });
+    // layoutWithSidebarWidth atomically updates BOTH sidebarView + contentView
     tabManager.layoutWithSidebarWidth(clampedWidth);
     compactMode.setBaseWidth(clampedWidth);
     sidebarView.webContents.send(IPC.SIDEBAR_WIDTH_CHANGED, clampedWidth);
 
-    // Re-enable compact mode after a short idle (drag likely finished)
     if ((ipcMain as any)._resizeIdleTimer) clearTimeout((ipcMain as any)._resizeIdleTimer);
     (ipcMain as any)._resizeIdleTimer = setTimeout(() => {
       compactMode.setResizing(false);

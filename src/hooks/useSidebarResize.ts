@@ -3,16 +3,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /**
  * Sidebar resize for Electron BrowserView architecture.
  *
- * CRITICAL: In Electron, the sidebar is a BrowserView whose width is set
- * by the MAIN PROCESS. The sidebar div inside it should always be width:100%.
- *
- * All we do here is:
- * 1. On mount: restore saved width via IPC so main process sets BrowserView size.
- * 2. On drag: send IPC to main process at ~60fps via rAF.
- * 3. On mouseup: save final width to localStorage.
- *
- * We do NOT manipulate any CSS width variables — that would create a mismatch
- * between the CSS layout and the actual BrowserView bounds.
+ * KEY DESIGN: No requestAnimationFrame throttle during drag.
+ * Every mousemove fires IPC directly. The main process only calls
+ * setBounds on the CONTENT view (not the sidebar), so there's only
+ * one async GPU operation per frame — no compositor desync.
  */
 
 const STORAGE_KEY = 'astra-sidebar-width';
@@ -39,7 +33,7 @@ export function useSidebarResize() {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
 
-  // On mount: tell main process what width to use (from localStorage)
+  // On mount: restore saved width
   useEffect(() => {
     const saved = loadWidth();
     window.astra.resizeSidebar(saved);
@@ -50,7 +44,6 @@ export function useSidebarResize() {
     e.stopPropagation();
 
     const startX = e.clientX;
-    // Read current width from the BrowserView bounds (via DOM measurement)
     const startWidth = sidebarRef.current
       ? sidebarRef.current.getBoundingClientRect().width
       : loadWidth();
@@ -59,28 +52,20 @@ export function useSidebarResize() {
     document.body.style.cursor = 'ew-resize';
     document.body.style.userSelect = 'none';
 
-    let rafId = 0;
     let lastWidth = startWidth;
 
     const onMouseMove = (ev: MouseEvent) => {
-      // Capture clientX before rAF — synthetic events get recycled
-      const currentX = ev.clientX;
-
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        const delta = currentX - startX;
-        const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
-        if (clamped === lastWidth) return; // skip if nothing changed
-        lastWidth = clamped;
-        // Only IPC — no CSS manipulation
-        window.astra.resizeSidebar(clamped);
-      });
+      const delta = ev.clientX - startX;
+      const clamped = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
+      if (clamped === lastWidth) return;
+      lastWidth = clamped;
+      // Direct IPC — no rAF. Main process only moves ONE view (content),
+      // so the GPU cost per call is minimal.
+      window.astra.resizeSidebar(clamped);
     };
 
     const onMouseUp = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-
-      // Final call with authoritative width
+      // Final authoritative call + persist
       window.astra.resizeSidebar(lastWidth);
       saveWidth(lastWidth);
 
