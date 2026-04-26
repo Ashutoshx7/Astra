@@ -38,13 +38,116 @@ export class TabManager {
   private static readonly CONTENT_INSET = 8;
   private static readonly CONTENT_RADIUS = 10;
 
+  // Zen-style toolbar reveal: content shifts DOWN on hover to show controls.
+  // (Zen: margin-top = calc(-1 * var(--zen-toolbar-height) + var(--zen-element-separation)))
+  private static readonly TOOLBAR_HEIGHT = 36;
+  private static readonly ANIM_DURATION = 150; // ms — matches Zen's 0.12s spring
+  private static readonly ANIM_FPS = 60;
+  private toolbarExpanded = false;
+  private animTimer: ReturnType<typeof setInterval> | null = null;
+  private currentY: number = 8; // tracks interpolated Y position
+
+  // Tiny strip at window's top-right with minimize/maximize/close buttons.
+  // Z-indexed BELOW content — revealed when content shifts down.
+  private readonly controlsView: WebContentsView;
+
   constructor(
     private readonly mainWindow: BaseWindow,
     private readonly sidebarView: WebContentsView,
     private readonly database: AppDatabase,
+    preloadPath: string,
   ) {
     this.downloadManager = new DownloadManager(sidebarView);
     this.newTabPageUrl = getNewTabPageUrl(); // Cache the data URL
+
+    // Create window controls strip — NO preload needed.
+    // IPC is handled via webContents.ipc on the main process side.
+    this.controlsView = new WebContentsView({
+      webPreferences: {
+        preload: preloadPath,
+        contextIsolation: true,
+        sandbox: true,
+      },
+    });
+    this.controlsView.setBackgroundColor('#1b1b1b');
+    this.controlsView.webContents.loadURL(TabManager.buildControlsHTML());
+    // Add at z-index 0 (behind everything)
+    this.mainWindow.contentView.addChildView(this.controlsView, 0);
+
+    // Listen for IPC from controls strip (standard channels from preload)
+    // The preload sends 'window:minimize', 'window:maximize', 'window:close',
+    // 'toolbar:expand', 'toolbar:collapse' — all handled by global ipcMain handlers.
+
+    // Fallback: also listen via webContents.ipc for custom channels
+    this.controlsView.webContents.ipc.on('controls:hover-enter', () => this.setToolbarExpanded(true));
+    this.controlsView.webContents.ipc.on('controls:hover-leave', () => {
+      setTimeout(() => this.setToolbarExpanded(false), 300);
+    });
+
+    // After load, verify window.astra works. If not, inject handlers manually.
+    this.controlsView.webContents.on('did-finish-load', () => {
+      this.controlsView.webContents.executeJavaScript(`
+        (function() {
+          const a = window.astra;
+          if (!a) {
+            // Preload didn't load — log for debugging
+            console.warn('[Astra Controls] window.astra not available');
+            return;
+          }
+          // Wire up buttons
+          const min = document.getElementById('min');
+          const max = document.getElementById('max');
+          const close = document.getElementById('close');
+          if (min) min.onclick = () => a.minimizeWindow();
+          if (max) max.onclick = () => a.maximizeWindow();
+          if (close) close.onclick = () => a.closeWindow();
+
+          // Hover detection for toolbar reveal
+          document.body.addEventListener('mouseenter', () => a.toolbarExpand());
+          document.body.addEventListener('mouseleave', () => a.toolbarCollapse());
+        })();
+      `).catch(() => { /* ignore script errors */ });
+    });
+  }
+
+  /** Builds a data-URL with the window control buttons */
+  private static buildControlsHTML(): string {
+    const html = `<!DOCTYPE html>
+<html><head><style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #1b1b1b;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100vh;
+    padding-right: 6px;
+    font-family: sans-serif;
+    -webkit-app-region: drag;
+    overflow: hidden;
+  }
+  .btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 28px; border: none;
+    background: transparent; color: #888; cursor: pointer;
+    border-radius: 5px; transition: background 0.12s, color 0.12s;
+    -webkit-app-region: no-drag;
+  }
+  .btn:hover { background: rgba(255,255,255,0.1); color: #e0e0e0; }
+  .btn.close:hover { background: #e81123; color: #fff; }
+  .btn svg { width: 12px; height: 12px; }
+</style></head><body>
+  <button class="btn" id="min" title="Minimize">
+    <svg viewBox="0 0 12 12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+  </button>
+  <button class="btn" id="max" title="Maximize">
+    <svg viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+  </button>
+  <button class="btn close" id="close" title="Close">
+    <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+  </button>
+</body></html>`;
+    return 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
   }
 
   // --------------------------------------------------
@@ -556,6 +659,15 @@ export class TabManager {
     // Sidebar extends INTO the gap area so there's no gap between views
     this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
 
+    // Controls strip spans full content width at top (hover trigger + buttons).
+    // Buttons are right-aligned via CSS; the full strip catches hover.
+    this.controlsView.setBounds({
+      x: this.sidebarWidth + g,
+      y: 0,
+      width: width - this.sidebarWidth - g * 2,
+      height: TabManager.TOOLBAR_HEIGHT,
+    });
+
     const activeTab = this.getActiveTab();
 
     if (this.currentlyAttachedTabId !== this.activeTabId) {
@@ -566,19 +678,19 @@ export class TabManager {
         }
       }
       if (activeTab) {
-        // Insert at index 0 = bottom z-order (sidebar stays on top)
-        this.mainWindow.contentView.addChildView(activeTab.view, 0);
+        // Insert at index 1 = above controls (index 0), below sidebar
+        this.mainWindow.contentView.addChildView(activeTab.view, 1);
       }
       this.currentlyAttachedTabId = this.activeTabId;
     }
 
     if (activeTab) {
-      // Content starts RIGHT where sidebar ends — zero gap between BrowserViews
+      const topY = this.toolbarExpanded ? TabManager.TOOLBAR_HEIGHT : g;
       activeTab.view.setBounds({
         x: this.sidebarWidth + g,
-        y: g,
+        y: topY,
         width: width - this.sidebarWidth - g * 2,
-        height: height - g * 2,
+        height: height - topY - g,
       });
       try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
     }
@@ -604,31 +716,105 @@ export class TabManager {
     const shrinking = this.sidebarWidth < oldWidth;
 
     const activeTab = this.getActiveTab();
+    const topY = this.toolbarExpanded ? TabManager.TOOLBAR_HEIGHT : g;
 
     if (shrinking) {
-      // Content moves LEFT first (tucks under sidebar), then sidebar shrinks
       if (activeTab) {
         activeTab.view.setBounds({
           x: this.sidebarWidth + g,
-          y: g,
+          y: topY,
           width: width - this.sidebarWidth - g * 2,
-          height: height - g * 2,
+          height: height - topY - g,
         });
         try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch {}
       }
       this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
     } else {
-      // Sidebar expands first (covers gap), then content moves RIGHT
       this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
       if (activeTab) {
         activeTab.view.setBounds({
           x: this.sidebarWidth + g,
-          y: g,
+          y: topY,
           width: width - this.sidebarWidth - g * 2,
-          height: height - g * 2,
+          height: height - topY - g,
         });
         try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch {}
       }
     }
+  }
+
+  /**
+   * Zen-style toolbar reveal — SMOOTH animated.
+   *
+   * Interpolates content Y position over 150ms with easeOutCubic,
+   * matching Zen's `duration: 0.12` spring animation. Each frame
+   * calls setBounds with the eased Y value.
+   */
+  setToolbarExpanded(expanded: boolean): void {
+    if (this.toolbarExpanded === expanded) return;
+    this.toolbarExpanded = expanded;
+
+    // Cancel any in-progress animation
+    if (this.animTimer) {
+      clearInterval(this.animTimer);
+      this.animTimer = null;
+    }
+
+    const { width, height } = this.mainWindow.getContentBounds();
+    const g = TabManager.CONTENT_INSET;
+    const targetY = expanded ? TabManager.TOOLBAR_HEIGHT : g;
+    const startY = this.currentY;
+    const deltaY = targetY - startY;
+
+    // Position controls strip (instant — it's behind content)
+    this.controlsView.setBounds({
+      x: this.sidebarWidth + g,
+      y: 0,
+      width: width - this.sidebarWidth - g * 2,
+      height: TabManager.TOOLBAR_HEIGHT,
+    });
+
+    const activeTab = this.getActiveTab();
+    if (!activeTab) {
+      this.currentY = targetY;
+      this.sidebarView.webContents.send('toolbar:expanded', expanded);
+      return;
+    }
+
+    const frameInterval = 1000 / TabManager.ANIM_FPS;
+    const totalFrames = Math.ceil(TabManager.ANIM_DURATION / frameInterval);
+    let frame = 0;
+
+    this.animTimer = setInterval(() => {
+      frame++;
+      // easeOutCubic: t => 1 - (1 - t)^3
+      const t = Math.min(frame / totalFrames, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const y = Math.round(startY + deltaY * eased);
+
+      this.currentY = y;
+      activeTab.view.setBounds({
+        x: this.sidebarWidth + g,
+        y,
+        width: width - this.sidebarWidth - g * 2,
+        height: height - y - g,
+      });
+
+      if (frame >= totalFrames) {
+        clearInterval(this.animTimer!);
+        this.animTimer = null;
+        this.currentY = targetY;
+        // Final exact position
+        activeTab.view.setBounds({
+          x: this.sidebarWidth + g,
+          y: targetY,
+          width: width - this.sidebarWidth - g * 2,
+          height: height - targetY - g,
+        });
+      }
+    }, frameInterval);
+
+    // Tell sidebar renderer about the state
+    this.sidebarView.webContents.send('toolbar:expanded', expanded);
   }
 }
