@@ -177,8 +177,14 @@ const App: React.FC = () => {
       ref={sidebarRef}
       onClick={() => setSpaceContextMenu(null)}
     >
-      {/* Window drag area */}
-      <div className="sidebar-drag-area" />
+      {/* Toolbar hover trigger — hovering sends IPC to shift content down */}
+      <div
+        className="sidebar-toolbar-trigger"
+        onMouseEnter={() => window.astra.toolbarExpand()}
+        onMouseLeave={() => window.astra.toolbarCollapse()}
+      >
+        <div className="sidebar-drag-handle" />
+      </div>
 
       {/* URL bar + toolbar */}
       <UrlBar
