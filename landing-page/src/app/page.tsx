@@ -5,11 +5,12 @@ import Keyboard from "@/components/Keyboard/Keyboard";
 
 export default function Home() {
   return (
-    <main className="relative min-h-screen flex flex-col items-center justify-center bg-background text-foreground overflow-hidden">
+    <main className="relative w-full min-h-screen flex flex-col items-center justify-center bg-background text-foreground overflow-hidden">
       {/* Starry Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-60">
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000_100%)] opacity-80"></div>
         <div 
-          className="absolute inset-0"
+          className="absolute inset-0 opacity-60"
           style={{
             backgroundImage: `
               radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
@@ -23,11 +24,10 @@ export default function Home() {
             backgroundSize: '200px 200px',
           }}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#000_100%)] opacity-80"></div>
       </div>
 
-      <div className="relative z-10 flex flex-col items-center w-full">
-        <h1 className="text-5xl font-bold italic text-white py-2">
+      <div className="relative z-10 flex flex-col items-center w-full px-4">
+        <h1 className="text-4xl md:text-5xl font-bold italic text-white py-2 text-center">
           Astra Browser
         </h1>
 
@@ -36,7 +36,7 @@ export default function Home() {
           <GithubStarButton />
         </div>
 
-        <div className="w-full max-w-2xl mt-12 flex flex-col gap-4">
+        <div className="w-full max-w-2xl mt-8 md:mt-12 flex flex-col gap-4">
           <div className="flex justify-between text-[11px] text-neutral-500 font-medium px-1 tracking-[0.2em] uppercase">
             <span>Development Progress</span>
             <span className="text-neutral-400">40%</span>
