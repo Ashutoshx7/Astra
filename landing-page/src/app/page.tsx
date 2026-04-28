@@ -28,7 +28,7 @@ export default function Home() {
 
       <div className="relative z-10 flex flex-col items-center w-full px-4">
         <h1 className="text-4xl md:text-5xl font-bold italic text-white py-2 text-center">
-          Astra Browser
+          Draco Browser
         </h1>
 
         <div className="flex flex-wrap items-center justify-center gap-4 my-6">

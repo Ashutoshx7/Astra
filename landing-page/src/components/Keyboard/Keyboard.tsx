@@ -129,7 +129,7 @@ export default function Keyboard() {
 
     // Auto-typer script
     let typeIndex = 0;
-    const textToType = "Astra. Fast, private, and beautiful web browser. Built with love by one stubborn developer.       ";
+    const textToType = "Draco. Fast, private, and beautiful web browser. Built with love by one stubborn developer.       ";
     let isTyping = true;
     let typeTimeout: any;
 
