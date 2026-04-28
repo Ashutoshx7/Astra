@@ -1,4 +1,4 @@
-# Astra (अस्त्र)
+# Orbit
 
 > *A browser built by one person who got tired of all the noise.*
 
