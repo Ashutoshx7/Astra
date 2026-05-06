@@ -32,17 +32,14 @@ const TabItem = React.memo<TabItemProps>(({
     <span className="tab-title" title={tab.title}>{tab.title}</span>
     <div className="tab-actions">
       <button
-        className="tab-pin"
-        onClick={(e) => { e.stopPropagation(); onPin(tab.id); }}
-        title="Pin tab"
-      >
-        📌
-      </button>
-      <button
         className="tab-close"
         onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
+        title="Close tab"
       >
-        ×
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="4" y1="4" x2="12" y2="12"/>
+          <line x1="12" y1="4" x2="4" y2="12"/>
+        </svg>
       </button>
     </div>
   </div>
