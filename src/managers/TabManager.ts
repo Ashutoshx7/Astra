@@ -38,17 +38,19 @@ export class TabManager {
   private static readonly CONTENT_INSET = 8;
   private static readonly CONTENT_RADIUS = 10;
 
-  // Zen-style toolbar reveal: content shifts DOWN on hover to show controls.
-  // (Zen: margin-top = calc(-1 * var(--zen-toolbar-height) + var(--zen-element-separation)))
+  // Zen-style toolbar reveal:
+  // Controls strip z-indexed ABOVE content, BELOW sidebar.
+  // Starts at CONTENT_INSET height (8px) — fills the gap above content.
+  // Sidebar covers left portion, so only WORKSPACE top edge triggers hover.
+  // On hover: height 8 → 36, covering content's top. Content never moves.
   private static readonly TOOLBAR_HEIGHT = 36;
-  private static readonly ANIM_DURATION = 150; // ms — matches Zen's 0.12s spring
+  private static readonly ANIM_DURATION = 150; // ms — matches Zen's 0.15s ease-in-out
   private static readonly ANIM_FPS = 60;
   private toolbarExpanded = false;
   private animTimer: ReturnType<typeof setInterval> | null = null;
-  private currentY: number = 8; // tracks interpolated Y position
+  private currentControlsH: number = TabManager.CONTENT_INSET; // starts at 8px (gap height)
 
-  // Tiny strip at window's top-right with minimize/maximize/close buttons.
-  // Z-indexed BELOW content — revealed when content shifts down.
+  // Window controls strip — z-indexed ABOVE content, BELOW sidebar.
   private readonly controlsView: WebContentsView;
 
   constructor(
@@ -71,8 +73,8 @@ export class TabManager {
     });
     this.controlsView.setBackgroundColor('#1b1b1b');
     this.controlsView.webContents.loadURL(TabManager.buildControlsHTML());
-    // Add at z-index 0 (behind everything)
-    this.mainWindow.contentView.addChildView(this.controlsView, 0);
+    // Add at z-index 2 — ABOVE content (1), BELOW sidebar (added last = highest)
+    this.mainWindow.contentView.addChildView(this.controlsView, 2);
 
     // Listen for IPC from controls strip (standard channels from preload)
     // The preload sends 'window:minimize', 'window:maximize', 'window:close',
@@ -656,16 +658,15 @@ export class TabManager {
     const { width, height } = this.mainWindow.getContentBounds();
     const g = TabManager.CONTENT_INSET;
 
-    // Sidebar extends INTO the gap area so there's no gap between views
+    // Sidebar always at y=0, no shifting
     this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
 
-    // Controls strip spans full content width at top (hover trigger + buttons).
-    // Buttons are right-aligned via CSS; the full strip catches hover.
+    // Controls strip — covers content area only (sidebar hides the left portion via z-order)
     this.controlsView.setBounds({
       x: this.sidebarWidth + g,
       y: 0,
       width: width - this.sidebarWidth - g * 2,
-      height: TabManager.TOOLBAR_HEIGHT,
+      height: this.currentControlsH,
     });
 
     const activeTab = this.getActiveTab();
@@ -678,19 +679,19 @@ export class TabManager {
         }
       }
       if (activeTab) {
-        // Insert at index 1 = above controls (index 0), below sidebar
-        this.mainWindow.contentView.addChildView(activeTab.view, 1);
+        // Index 0 — bottom of stack (below controls at 2, below sidebar)
+        this.mainWindow.contentView.addChildView(activeTab.view, 0);
       }
       this.currentlyAttachedTabId = this.activeTabId;
     }
 
     if (activeTab) {
-      const topY = this.toolbarExpanded ? TabManager.TOOLBAR_HEIGHT : g;
+      // Content NEVER moves — always at y=g. Controls overlay its top edge on hover.
       activeTab.view.setBounds({
         x: this.sidebarWidth + g,
-        y: topY,
+        y: g,
         width: width - this.sidebarWidth - g * 2,
-        height: height - topY - g,
+        height: height - g * 2,
       });
       try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
     }
@@ -716,17 +717,16 @@ export class TabManager {
     const shrinking = this.sidebarWidth < oldWidth;
 
     const activeTab = this.getActiveTab();
-    const topY = this.toolbarExpanded ? TabManager.TOOLBAR_HEIGHT : g;
 
     if (shrinking) {
       if (activeTab) {
         activeTab.view.setBounds({
           x: this.sidebarWidth + g,
-          y: topY,
+          y: g,
           width: width - this.sidebarWidth - g * 2,
-          height: height - topY - g,
+          height: height - g * 2,
         });
-        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch {}
+        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { }
       }
       this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
     } else {
@@ -734,11 +734,11 @@ export class TabManager {
       if (activeTab) {
         activeTab.view.setBounds({
           x: this.sidebarWidth + g,
-          y: topY,
+          y: g,
           width: width - this.sidebarWidth - g * 2,
-          height: height - topY - g,
+          height: height - g * 2,
         });
-        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch {}
+        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { }
       }
     }
   }
@@ -746,9 +746,9 @@ export class TabManager {
   /**
    * Zen-style toolbar reveal — SMOOTH animated.
    *
-   * Interpolates content Y position over 150ms with easeOutCubic,
-   * matching Zen's `duration: 0.12` spring animation. Each frame
-   * calls setBounds with the eased Y value.
+   * Content and sidebar NEVER move. Only controlsView height animates:
+   * CONTENT_INSET (8px) → TOOLBAR_HEIGHT (36px), overlapping content top.
+   * 150ms ease-in-out matches Zen's --zen-hidden-toolbar-transition.
    */
   setToolbarExpanded(expanded: boolean): void {
     if (this.toolbarExpanded === expanded) return;
@@ -762,59 +762,37 @@ export class TabManager {
 
     const { width, height } = this.mainWindow.getContentBounds();
     const g = TabManager.CONTENT_INSET;
-    const targetY = expanded ? TabManager.TOOLBAR_HEIGHT : g;
-    const startY = this.currentY;
-    const deltaY = targetY - startY;
+    const T = TabManager.TOOLBAR_HEIGHT;
 
-    // Position controls strip (instant — it's behind content)
-    this.controlsView.setBounds({
-      x: this.sidebarWidth + g,
-      y: 0,
-      width: width - this.sidebarWidth - g * 2,
-      height: TabManager.TOOLBAR_HEIGHT,
-    });
-
-    const activeTab = this.getActiveTab();
-    if (!activeTab) {
-      this.currentY = targetY;
-      this.sidebarView.webContents.send('toolbar:expanded', expanded);
-      return;
-    }
+    const targetH = expanded ? T : g;
+    const startH = this.currentControlsH;
+    const deltaH = targetH - startH;
 
     const frameInterval = 1000 / TabManager.ANIM_FPS;
     const totalFrames = Math.ceil(TabManager.ANIM_DURATION / frameInterval);
     let frame = 0;
+    const contentW = width - this.sidebarWidth - g * 2;
+    const contentX = this.sidebarWidth + g;
 
     this.animTimer = setInterval(() => {
       frame++;
-      // easeOutCubic: t => 1 - (1 - t)^3
       const t = Math.min(frame / totalFrames, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const y = Math.round(startY + deltaY * eased);
+      const eased = t < 0.5
+        ? 2 * t * t
+        : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
-      this.currentY = y;
-      activeTab.view.setBounds({
-        x: this.sidebarWidth + g,
-        y,
-        width: width - this.sidebarWidth - g * 2,
-        height: height - y - g,
-      });
+      const h = Math.round(startH + deltaH * eased);
+      this.currentControlsH = h;
+      this.controlsView.setBounds({ x: contentX, y: 0, width: contentW, height: h });
 
       if (frame >= totalFrames) {
         clearInterval(this.animTimer!);
         this.animTimer = null;
-        this.currentY = targetY;
-        // Final exact position
-        activeTab.view.setBounds({
-          x: this.sidebarWidth + g,
-          y: targetY,
-          width: width - this.sidebarWidth - g * 2,
-          height: height - targetY - g,
-        });
+        this.currentControlsH = targetH;
+        this.controlsView.setBounds({ x: contentX, y: 0, width: contentW, height: targetH });
       }
     }, frameInterval);
 
-    // Tell sidebar renderer about the state
     this.sidebarView.webContents.send('toolbar:expanded', expanded);
   }
 }
