@@ -3,24 +3,20 @@ import { BaseWindow, WebContentsView } from 'electron';
 /**
  * CompactModeManager - Zen-parity sidebar auto-hide.
  *
- * KEY INSIGHT from Zen:
- *   CSS transitions are GPU-accelerated. setBounds is not.
- *   Never animate setBounds. Use CSS for visual smoothness,
- *   then snap bounds once after animation completes.
+ * Critical rule: content reacts INSTANTLY. No delay.
+ * Sidebar CSS animation is purely visual (floats on top).
  *
  * Toggle HIDE:
- *   1. Send 'hiding' → renderer plays CSS slideOut (GPU-accelerated)
- *   2. After 250ms: snap bounds (sidebar 12px, content full width)
+ *   1. Move sidebar to FRONT (floats over content)
+ *   2. Content expands to full width IMMEDIATELY
+ *   3. CSS slideOut animates sidebar off-screen (GPU-composited)
+ *   4. After 250ms: shrink sidebar to 12px edge strip
  *
  * Toggle SHOW:
- *   1. Snap bounds first (sidebar full width, content offset)
- *   2. Send 'showing' → renderer plays CSS slideIn (GPU-accelerated)
- *   3. After 250ms: send final state
- *
- * Overlay:
- *   1. Expand sidebar view (transparent bg, on top)
- *   2. Send 'showing' → renderer plays CSS slideIn
- *   3. On leave: send 'hiding' → CSS slideOut, then shrink
+ *   1. Expand sidebar view ON TOP, solid bg
+ *   2. Content shifts right IMMEDIATELY
+ *   3. CSS slideIn animates sidebar from left (GPU-composited)
+ *   4. After 250ms: move sidebar to BACK (normal z-order)
  */
 
 export type CompactMode = 'expanded' | 'hidden';
@@ -64,42 +60,49 @@ export class CompactModeManager {
     this.clearAll();
 
     if (this.mode === 'expanded') {
-      // HIDE: CSS slideOut first, then snap bounds
+      // HIDE
       this.mode = 'hidden';
       this.overlayVisible = false;
 
-      // Step 1: trigger CSS slideOut animation (GPU-accelerated)
+      // Sidebar floats on top during animation
+      this.sidebarToFront();
+
+      // Content expands IMMEDIATELY (no delay)
+      this.layoutCallback(0);
+
+      // CSS slideOut starts
       this.sendState('hiding');
 
-      // Step 2: after animation, snap bounds
+      // After animation: finalize
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
         this.sidebarView.setBackgroundColor(TRANSPARENT);
         this.shrinkToEdge();
-        this.sidebarToFront();
-        this.layoutCallback(0);
         this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
         console.log('[Astra] sidebar: hidden');
       }, ANIM_MS);
 
     } else {
-      // SHOW: snap bounds first, then CSS slideIn
+      // SHOW
       this.mode = 'expanded';
       this.overlayVisible = false;
 
-      // Step 1: snap bounds (sidebar behind content, solid bg)
+      // Sidebar on top during animation (so slideIn is visible)
       this.sidebarView.setBackgroundColor(BG_COLOR);
       this.setSidebarFull();
-      this.sidebarToBack();
+      this.sidebarToFront();
+
+      // Content shifts right IMMEDIATELY
       this.layoutCallback(this.baseWidth);
 
-      // Step 2: trigger CSS slideIn animation (GPU-accelerated)
+      // CSS slideIn starts
       this.sendState('showing');
 
-      // Step 3: after animation, send final state
+      // After animation: sidebar goes behind content (normal z-order)
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
+        this.sidebarToBack();
         this.sendState();
         console.log('[Astra] sidebar: expanded');
       }, ANIM_MS);
@@ -138,7 +141,7 @@ export class CompactModeManager {
     this.overlayVisible = true;
     this.showTimestamp = Date.now();
 
-    // Expand sidebar view on top, CSS slideIn
+    // Sidebar on top, CSS slideIn
     this.setSidebarFull();
     this.sidebarToFront();
     this.sendState('showing');
@@ -199,7 +202,7 @@ export class CompactModeManager {
       this.hideTimer = null;
       if (!this.overlayVisible) return;
 
-      // CSS slideOut first
+      // CSS slideOut
       this.sendState('hiding');
 
       this.animTimer = setTimeout(() => {
