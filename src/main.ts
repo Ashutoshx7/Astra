@@ -310,9 +310,17 @@ function createWindow(): void {
 
     tabManager.setSidebarWidth(width);
     const clampedWidth = tabManager.getSidebarWidth();
-    // layoutWithSidebarWidth atomically updates BOTH sidebarView + contentView
-    tabManager.layoutWithSidebarWidth(clampedWidth);
     compactMode.setBaseWidth(clampedWidth);
+
+    if (compactMode.getMode() === 'hidden') {
+      // Overlay mode: only resize the sidebar view, don't move content
+      const { height } = mainWindow.getContentBounds();
+      sidebarView.setBounds({ x: 0, y: 0, width: clampedWidth + 8, height });
+    } else {
+      // Expanded mode: resize both sidebar and content together
+      tabManager.layoutWithSidebarWidth(clampedWidth);
+    }
+
     sidebarView.webContents.send(IPC.SIDEBAR_WIDTH_CHANGED, clampedWidth);
 
     if ((ipcMain as any)._resizeIdleTimer) clearTimeout((ipcMain as any)._resizeIdleTimer);
