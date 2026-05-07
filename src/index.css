@@ -1566,36 +1566,28 @@ select,
 }
 
 /*
- * Overlay: sidebar floats with its own background,
- * positioned absolutely within the transparent view.
- * Content is visible through the transparent parts.
+ * Overlay: sidebar view is expanded + transparent + on top.
+ * The sidebar div gets floating panel styling directly.
  */
 .sidebar.sidebar-overlay {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-}
-
-/* The actual visible floating sidebar panel */
-.sidebar.sidebar-overlay > * {
-  position: relative;
-  z-index: 10;
-}
-
-.sidebar.sidebar-overlay::before {
-  content: '';
+  background: var(--astra-bg, #1b1b1b) !important;
   position: absolute;
   top: 8px;
   left: 8px;
   bottom: 8px;
-  width: calc(var(--astra-sidebar-width, 280px) - 16px);
-  background: var(--astra-bg, #1b1b1b);
-  border-radius: 12px;
-  z-index: 1;
+  width: calc(var(--astra-sidebar-width, 280px) - 16px) !important;
+  border-radius: 12px !important;
+  z-index: 200;
   box-shadow:
     0 8px 40px rgba(0, 0, 0, 0.45),
     0 2px 12px rgba(0, 0, 0, 0.2),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* Show all content in overlay */
+.sidebar.sidebar-overlay > * {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* Slide in (spring) */

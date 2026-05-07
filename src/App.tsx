@@ -162,7 +162,6 @@ const App: React.FC = () => {
 
   // Sidebar CSS classes driven by compactState from main process
   const { expanded, sidebarVisible, animating } = compactState;
-  const edgeZone = (compactState as any).edgeZone || 8;
 
   const sidebarClasses = [
     'sidebar',
@@ -172,26 +171,14 @@ const App: React.FC = () => {
     animating === 'showing' ? 'sidebar-sliding-in' : '',
   ].filter(Boolean).join(' ');
 
-  // Edge detection via mousemove (works with setIgnoreMouseEvents forwarding)
-  const edgeTriggered = useRef(false);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (expanded || sidebarVisible) return;
-    if (e.clientX <= edgeZone && !edgeTriggered.current) {
-      edgeTriggered.current = true;
-      window.astra.edgeEnter();
-    }
-  }, [expanded, sidebarVisible, edgeZone]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (!expanded && sidebarVisible) {
-      window.astra.edgeLeave();
-    }
-    edgeTriggered.current = false;
+  // Edge hover handlers
+  const handleMouseEnter = useCallback(() => {
+    if (!expanded && !sidebarVisible) window.astra.edgeEnter();
   }, [expanded, sidebarVisible]);
 
-  // Reset edge trigger when overlay hides
-  if (!sidebarVisible) edgeTriggered.current = false;
+  const handleMouseLeave = useCallback(() => {
+    if (!expanded && sidebarVisible) window.astra.edgeLeave();
+  }, [expanded, sidebarVisible]);
 
   // --------------------------------------------------
   // Render
@@ -201,7 +188,7 @@ const App: React.FC = () => {
       className={sidebarClasses}
       ref={sidebarRef}
       onClick={() => setSpaceContextMenu(null)}
-      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       {/* Drag handle for window moving */}
