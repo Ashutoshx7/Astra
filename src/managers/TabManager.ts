@@ -708,10 +708,10 @@ export class TabManager {
    */
   layoutWithSidebarWidth(sidebarWidth: number): void {
     const oldWidth = this.sidebarWidth;
-    this.sidebarWidth = Math.max(
-      CONFIG.SIDEBAR_MIN_WIDTH,
-      Math.min(CONFIG.SIDEBAR_MAX_WIDTH, sidebarWidth),
-    );
+    // Allow 0 for auto-hide; only clamp to min when sidebar is visible
+    this.sidebarWidth = sidebarWidth <= 0
+      ? 0
+      : Math.max(CONFIG.SIDEBAR_MIN_WIDTH, Math.min(CONFIG.SIDEBAR_MAX_WIDTH, sidebarWidth));
     const { width, height } = this.mainWindow.getContentBounds();
     const g = TabManager.CONTENT_INSET;
     const shrinking = this.sidebarWidth < oldWidth;

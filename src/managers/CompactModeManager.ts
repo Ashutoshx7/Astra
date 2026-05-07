@@ -42,6 +42,10 @@ export class CompactModeManager {
     this.baseWidth = width;
   }
 
+  getBaseWidth(): number {
+    return this.baseWidth;
+  }
+
   setResizing(resizing: boolean): void {}
 
   /** Toggle: expanded ↔ hidden */

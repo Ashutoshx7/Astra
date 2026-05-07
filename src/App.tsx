@@ -175,6 +175,7 @@ const App: React.FC = () => {
       className={sidebarClasses}
       ref={sidebarRef}
       onClick={() => setSpaceContextMenu(null)}
+      onMouseMove={(e) => window.astra.reportMouseMove(e.clientX, e.clientY)}
     >
       {/* Drag handle for window moving */}
       <div className="sidebar-drag-handle" />

@@ -107,10 +107,19 @@ function createWindow(): void {
 
   // CompactMode: controls sidebar auto-hide with layout callback
   compactMode = new CompactModeManager(mainWindow, sidebarView, (sidebarWidth) => {
-    const { height } = mainWindow!.getContentBounds();
-    // Sidebar extends 8px into gap area (same as TabManager.CONTENT_INSET)
-    sidebarView.setBounds({ x: 0, y: 0, width: sidebarWidth + 8, height });
-    tabManager.layoutWithSidebarWidth(sidebarWidth);
+    const { width, height } = mainWindow!.getContentBounds();
+    const g = 8; // CONTENT_INSET
+
+    if (sidebarWidth <= 0) {
+      // Hidden: content fills full window, sidebar view stays in place for hover detection
+      const baseW = compactMode.getBaseWidth();
+      sidebarView.setBounds({ x: 0, y: 0, width: baseW + g, height });
+      tabManager.layoutWithSidebarWidth(0);
+    } else {
+      // Visible: normal layout
+      sidebarView.setBounds({ x: 0, y: 0, width: sidebarWidth + g, height });
+      tabManager.layoutWithSidebarWidth(sidebarWidth);
+    }
   });
 
   // Glance: link preview overlay
