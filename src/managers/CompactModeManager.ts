@@ -3,19 +3,19 @@ import { BaseWindow, WebContentsView } from 'electron';
 /**
  * CompactModeManager - sidebar auto-hide with smooth transitions.
  *
- * Key insight: view bounds must change AFTER animations complete,
- * not before. Otherwise the resize causes visual glitching.
+ * The sidebar overlays ON TOP of content (like Zen).
+ * Content never moves during overlay - only during toggle.
  *
- * Flow:
- * - Hide: notify renderer (slide-out anim) → wait → shrink view
- * - Show: expand view → notify renderer (slide-in anim)
+ * Z-order management:
+ * - Normal: sidebar behind content (added first)
+ * - Overlay: sidebar brought to front via re-adding to contentView
  */
 
 export type CompactMode = 'expanded' | 'hidden';
 
 const EDGE_WIDTH = 12;
 const HIDE_DELAY_MS = 300;
-const ANIM_DURATION_MS = 220;  // matches CSS animation duration
+const ANIM_DURATION_MS = 220;
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
@@ -50,33 +50,27 @@ export class CompactModeManager {
     this.clearAllTimers();
 
     if (this.mode === 'expanded') {
-      // HIDE: animate out first, then shrink view
+      // HIDE: animate out, then shrink view + move content
       this.mode = 'hidden';
       this.overlayVisible = false;
-
-      // Tell renderer to start slide-out animation
       this.sendState('hiding');
 
-      // After animation finishes, actually shrink the view
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
         this.shrinkView();
+        this.layoutCallback(0); // content fills window
         this.sendState();
       }, ANIM_DURATION_MS);
 
     } else {
-      // SHOW: expand view first, then animate in
+      // SHOW: expand view + move content, then animate in
       this.mode = 'expanded';
       this.overlayVisible = false;
-
-      // Expand view immediately
+      this.sidebarToBack(); // normal z-order
       this.expandView();
-      this.layoutCallback(this.baseWidth);
-
-      // Tell renderer to animate in
+      this.layoutCallback(this.baseWidth); // content adjusts
       this.sendState('showing');
 
-      // Clear the showing flag after animation
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
         this.sendState();
@@ -90,24 +84,29 @@ export class CompactModeManager {
     if (mode === 'expanded' || mode === 'full') {
       this.mode = 'expanded';
       this.overlayVisible = false;
+      this.sidebarToBack();
       this.expandView();
       this.layoutCallback(this.baseWidth);
     } else {
       this.mode = 'hidden';
       this.overlayVisible = false;
       this.shrinkView();
+      this.layoutCallback(0);
     }
     this.sendState();
   }
 
-  /** Mouse entered the edge strip */
+  /** Mouse entered edge strip - show overlay ON TOP of content */
   onEdgeEnter(): void {
     if (this.mode === 'expanded' || this.overlayVisible) return;
-    this.clearHideTimer();
+    this.clearAllTimers();
     this.overlayVisible = true;
 
-    // Expand view, then tell renderer to animate in
+    // Bring sidebar to front so it overlays content
+    this.sidebarToFront();
     this.expandView();
+    // Do NOT call layoutCallback - content stays at full width
+
     this.sendState('showing');
 
     this.animTimer = setTimeout(() => {
@@ -115,10 +114,10 @@ export class CompactModeManager {
       this.sendState();
     }, ANIM_DURATION_MS);
 
-    console.log('[Astra] sidebar: overlay shown');
+    console.log('[Astra] sidebar: overlay');
   }
 
-  /** Mouse left the sidebar area */
+  /** Mouse left sidebar - start hide timer */
   onEdgeLeave(): void {
     if (this.mode === 'expanded' || !this.overlayVisible) return;
     this.startHideTimer();
@@ -135,7 +134,25 @@ export class CompactModeManager {
   lockForPopup(): void {}
   unlockFromPopup(): void {}
 
-  // -- View management --
+  // -- Z-order management --
+
+  private sidebarToFront(): void {
+    try {
+      const parent = this.mainWindow.contentView;
+      parent.removeChildView(this.sidebarView);
+      parent.addChildView(this.sidebarView); // adds to end = top
+    } catch { /* view might already be removed */ }
+  }
+
+  private sidebarToBack(): void {
+    try {
+      const parent = this.mainWindow.contentView;
+      parent.removeChildView(this.sidebarView);
+      parent.addChildView(this.sidebarView, 0); // index 0 = bottom
+    } catch { /* view might already be removed */ }
+  }
+
+  // -- View bounds --
 
   private expandView(): void {
     const { height } = this.mainWindow.getContentBounds();
@@ -145,7 +162,6 @@ export class CompactModeManager {
   private shrinkView(): void {
     const { height } = this.mainWindow.getContentBounds();
     this.sidebarView.setBounds({ x: 0, y: 0, width: EDGE_WIDTH, height });
-    this.layoutCallback(0);
   }
 
   // -- Timers --
@@ -163,6 +179,7 @@ export class CompactModeManager {
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
         this.shrinkView();
+        this.sidebarToBack();
         this.sendState();
       }, ANIM_DURATION_MS);
     }, HIDE_DELAY_MS);
