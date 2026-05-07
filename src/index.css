@@ -332,69 +332,53 @@ select,
   border-radius: 6px;
 }
 
-/* === Zen urlbar === */
+/* === Zen-exact urlbar === */
 
 .url-form {
   width: 100%;
   position: relative;
-  /* Zen leaves space for the breakout shadow */
   padding: 1px;
 }
 
-/* Default state — very subtle pill, like Zen's .urlbar-background */
+/* Zen .urlbar-background: subtle tinted pill, no border */
 .url-input-wrapper {
   display: flex;
   align-items: center;
   border: none;
-  border-radius: 8px;
-  background: color-mix(in oklch, white 7%, transparent);
-  transition: background 0.1s ease, box-shadow 0.15s ease;
+  border-radius: 10px;
+  /* Zen dark: color-mix(in oklch, var(--toolbox-textcolor) 15%, transparent) */
+  background: rgba(255, 255, 255, 0.07);
+  transition: background 0.15s ease;
   position: relative;
   z-index: 1;
-}
-
-.url-input-wrapper:hover {
-  background: color-mix(in oklch, white 10%, transparent);
-}
-
-/* Focus — Zen's breakout-extend: big shadow, lighter bg, outline */
-.url-input-wrapper:focus-within {
-  background: rgba(20, 20, 60, 0.95);
-  box-shadow:
-    0 8px 40px -4px rgba(0, 0, 0, 0.5),
-    0 0 0 0.5px rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
   outline: none;
 }
 
-/* Security icon — Zen gives it a rounded pill bg when it's chromeUI */
-.security-icon {
+.url-input-wrapper:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+/* Focus — Zen breakout: deeper bg, subtle shadow */
+.url-input-wrapper:focus-within {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Search icon left — Zen identity-icon style */
+.url-icon-left {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 4px;
-  padding: 5px;
-  font-size: 11px;
-  border-radius: 6px;
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  opacity: 0.7;
-  transition: opacity 0.1s, background 0.1s;
+  padding: 0 2px 0 10px;
+  color: var(--astra-text-muted);
   flex-shrink: 0;
+  opacity: 0.6;
 }
 
-.security-icon.secure {
-  color: var(--astra-success);
-  opacity: 0.9;
-}
-
-.security-icon.insecure {
-  opacity: 0.45;
-}
-
-/* Input — fw:500 like Zen's .urlbar-input-box */
+/* Input — Zen .urlbar-input-box: fw:500 */
 .url-input {
   flex: 1;
-  padding: 8px 6px;
+  padding: 8px 8px;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.92);
@@ -403,39 +387,48 @@ select,
   font-family: inherit;
   outline: none;
   min-width: 0;
-  letter-spacing: 0.01em;
 }
 
-/* Bookmark icon — Zen hides page-actions until hover */
+.url-input::placeholder {
+  color: var(--astra-text-muted);
+  font-weight: 400;
+}
+
+/* Zen page-actions: hidden until hover, 0.15s transition */
+.url-page-actions {
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding-right: 4px;
+}
+
+.url-input-wrapper:hover .url-page-actions,
+.url-input-wrapper:focus-within .url-page-actions {
+  opacity: 1;
+}
+
 .bookmark-btn {
   border: none;
   background: transparent;
   color: var(--astra-text-muted);
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.15s, background 0.1s, color 0.1s;
-  flex-shrink: 0;
+  padding: 5px;
+  border-radius: 6px;
+  transition: background 0.1s, color 0.1s;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.url-input-wrapper:hover .bookmark-btn,
-.url-input-wrapper:focus-within .bookmark-btn {
-  opacity: 0.7;
-}
-
 .bookmark-btn:hover {
-  opacity: 1 !important;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  color: #fbbf24;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--astra-text);
 }
 
 .bookmark-btn.bookmarked {
-  opacity: 1;
   color: #fbbf24;
+  opacity: 1;
 }
 
 /* Suggestions dropdown */
@@ -687,22 +680,10 @@ select,
   opacity: 1;
 }
 
-/* Zen active: frosted pill with left accent */
+/* Zen active: frosted pill */
 .tab.active {
   background: rgba(255, 255, 255, 0.09);
   opacity: 1;
-}
-
-.tab.active::before {
-  content: '';
-  position: absolute;
-  left: 3px;
-  top: 25%;
-  bottom: 25%;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--astra-primary);
-  opacity: 0.8;
 }
 
 /* Zen: scale(0.99) + micro-rotate on press */
