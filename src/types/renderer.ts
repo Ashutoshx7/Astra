@@ -118,6 +118,9 @@ declare global {
       reportMouseMove: (x: number, y: number) => void;
       lockPopup: () => void;
       unlockPopup: () => void;
+      edgeEnter: () => void;
+      edgeLeave: () => void;
+      edgeCancelHide: () => void;
       openGlance: (url: string, x: number, y: number) => void;
       closeGlance: () => void;
       expandGlance: () => void;

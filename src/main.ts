@@ -263,6 +263,11 @@ function createWindow(): void {
   ipcMain.on('compact:lock-popup', () => compactMode.lockForPopup());
   ipcMain.on('compact:unlock-popup', () => compactMode.unlockFromPopup());
 
+  // Edge hover detection (Wayland-compatible)
+  ipcMain.on('compact:edge-enter', () => compactMode.onEdgeEnter());
+  ipcMain.on('compact:edge-leave', () => compactMode.onEdgeLeave());
+  ipcMain.on('compact:edge-cancel-hide', () => compactMode.onEdgeCancelHide());
+
   // --------------------------------------------------
   // Window Controls IPC (custom Zen-style buttons)
   // --------------------------------------------------

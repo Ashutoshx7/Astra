@@ -1517,32 +1517,61 @@ select,
 }
 
 /* ==========================================================
-   SIDEBAR AUTO-HIDE — Zen compact mode (spring animation)
+   SIDEBAR AUTO-HIDE — Zen compact mode
    ========================================================== */
 
-/* Hidden: Zen uses negative margin to slide off */
+/* Hidden: sidebar view is only 12px wide (edge strip) */
 .sidebar.sidebar-hidden {
-  margin-left: calc(-1 * var(--astra-sidebar-width, 300px));
-  opacity: 0;
-  pointer-events: none;
-  transition: margin-left 0.2s cubic-bezier(0.2, 0, 0, 1),
-              opacity 0.12s ease;
+  background: transparent;
+  overflow: hidden;
+  width: 12px !important;
+  min-width: 12px !important;
+  max-width: 12px !important;
+  cursor: default;
 }
 
-/* Overlay: slides back in, floating over content with shadow */
+/* Hide all content inside the edge strip */
+.sidebar.sidebar-hidden > *:not(.sidebar-drag-handle) {
+  display: none !important;
+}
+
+/* Subtle edge hover indicator */
+.sidebar.sidebar-hidden::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s;
+}
+
+.sidebar.sidebar-hidden:hover::after {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Overlay: sidebar slides in from left */
 .sidebar.sidebar-overlay {
-  margin-left: 0;
-  opacity: 1;
-  pointer-events: auto;
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
   z-index: 200;
-  transition: margin-left 0.2s cubic-bezier(0, 0, 0.2, 1),
-              opacity 0.12s ease;
+  animation: sidebarSlideIn 0.2s cubic-bezier(0, 0, 0.2, 1) forwards;
   box-shadow: 4px 0 32px rgba(0, 0, 0, 0.4),
               1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+@keyframes sidebarSlideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 /* ==========================================================

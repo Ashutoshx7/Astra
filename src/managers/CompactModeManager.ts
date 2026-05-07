@@ -1,29 +1,25 @@
-import { BaseWindow, WebContentsView, screen } from 'electron';
+import { BaseWindow, WebContentsView } from 'electron';
 
 /**
  * CompactModeManager — Zen-style sidebar auto-hide.
  *
  * Architecture:
- * - When hidden, sidebar view shrinks to a thin 1px edge strip
- *   so content view fills the window and receives all clicks.
- * - Main process polls cursor position to detect edge hover
- *   (since the sidebar view is too thin for mouseenter to work).
- * - When cursor enters edge zone, sidebar view expands and
- *   renderer shows the sidebar via CSS.
- * - When cursor leaves, sidebar hides after a delay.
+ * - When hidden, sidebar view = thin edge strip (EDGE_WIDTH px)
+ *   for mouseenter detection via IPC from renderer.
+ * - Renderer detects mouseenter on that strip → sends IPC → main expands view.
+ * - Renderer detects mouseleave → sends IPC → main shrinks view after delay.
+ * - Works on Wayland (no screen.getCursorScreenPoint needed).
  */
 
 export type CompactMode = 'expanded' | 'hidden';
 
-const EDGE_ZONE = 6;         // px from window left edge to trigger reveal
-const HIDE_DELAY_MS = 300;   // ms before hiding after cursor leaves
-const POLL_INTERVAL_MS = 50; // cursor polling interval
+const EDGE_WIDTH = 12;       // px - thin strip for hover detection
+const HIDE_DELAY_MS = 300;   // ms before hiding after mouse leaves
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
-  private sidebarOverlayVisible = false;
+  private overlayVisible = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
   private baseWidth = 300;
 
   constructor(
@@ -35,12 +31,12 @@ export class CompactModeManager {
   getMode(): CompactMode { return this.mode; }
 
   isSidebarVisible(): boolean {
-    return this.mode === 'expanded' || this.sidebarOverlayVisible;
+    return this.mode === 'expanded' || this.overlayVisible;
   }
 
   getSidebarWidth(): number {
     if (this.mode === 'expanded') return this.baseWidth;
-    return this.sidebarOverlayVisible ? this.baseWidth : 0;
+    return this.overlayVisible ? this.baseWidth : 0;
   }
 
   setBaseWidth(width: number): void { this.baseWidth = width; }
@@ -51,15 +47,14 @@ export class CompactModeManager {
   toggleMode(): void {
     if (this.mode === 'expanded') {
       this.mode = 'hidden';
-      this.sidebarOverlayVisible = false;
-      this.layoutHidden();
-      this.startEdgePolling();
+      this.overlayVisible = false;
+      this.clearHideTimer();
+      this.applyHiddenLayout();
     } else {
       this.mode = 'expanded';
-      this.sidebarOverlayVisible = false;
-      this.stopEdgePolling();
+      this.overlayVisible = false;
       this.clearHideTimer();
-      this.layoutExpanded();
+      this.applyExpandedLayout();
     }
     this.notifyRenderer();
     console.log(`[Astra] 📐 Sidebar: ${this.mode}`);
@@ -68,106 +63,69 @@ export class CompactModeManager {
   setMode(mode: any): void {
     if (mode === 'expanded' || mode === 'full') {
       this.mode = 'expanded';
-      this.sidebarOverlayVisible = false;
-      this.stopEdgePolling();
-      this.layoutExpanded();
+      this.overlayVisible = false;
+      this.applyExpandedLayout();
     } else {
       this.mode = 'hidden';
-      this.sidebarOverlayVisible = false;
-      this.layoutHidden();
-      this.startEdgePolling();
+      this.overlayVisible = false;
+      this.applyHiddenLayout();
     }
     this.notifyRenderer();
   }
 
-  // No-ops — hover handled by polling now
+  /** Called from renderer via IPC when mouse enters the edge strip */
+  onEdgeEnter(): void {
+    if (this.mode === 'expanded' || this.overlayVisible) return;
+    this.clearHideTimer();
+    this.overlayVisible = true;
+
+    // Expand sidebar view to full width
+    const { height } = this.mainWindow.getContentBounds();
+    this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
+
+    this.notifyRenderer();
+    console.log('[Astra] 📐 Sidebar: overlay shown (edge hover)');
+  }
+
+  /** Called from renderer via IPC when mouse leaves the sidebar */
+  onEdgeLeave(): void {
+    if (this.mode === 'expanded' || !this.overlayVisible) return;
+    this.startHideTimer();
+  }
+
+  /** Cancel pending hide (mouse re-entered) */
+  onEdgeCancelHide(): void {
+    this.clearHideTimer();
+  }
+
+  // Legacy no-ops
   handleMouseMove(_x: number, _y: number): void {}
   flashSidebar(): void {}
   lockForPopup(): void {}
   unlockFromPopup(): void {}
 
-  // ── Edge hover polling ──
+  // ── Layout ──
 
-  private startEdgePolling(): void {
-    if (this.pollTimer) return;
-    this.pollTimer = setInterval(() => this.checkCursorEdge(), POLL_INTERVAL_MS);
-  }
-
-  private stopEdgePolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
-  }
-
-  private checkCursorEdge(): void {
-    if (this.mode === 'expanded') return;
-    if (!this.mainWindow) return;
-
-    try {
-      const cursorPos = screen.getCursorScreenPoint();
-      const winBounds = this.mainWindow.getBounds();
-
-      // Cursor X relative to window left edge
-      const relX = cursorPos.x - winBounds.x;
-      // Cursor Y relative to window
-      const relY = cursorPos.y - winBounds.y;
-
-      // Only detect if cursor is within the window's vertical bounds
-      const inWindow = relY >= 0 && relY <= winBounds.height;
-
-      if (inWindow && relX >= 0 && relX <= EDGE_ZONE && !this.sidebarOverlayVisible) {
-        // Cursor at left edge → show sidebar overlay
-        this.clearHideTimer();
-        this.showOverlay();
-      } else if (this.sidebarOverlayVisible && relX > this.baseWidth) {
-        // Cursor left sidebar area → start hide timer
-        this.startHideTimer();
-      } else if (this.sidebarOverlayVisible && relX <= this.baseWidth) {
-        // Cursor inside sidebar → cancel hide
-        this.clearHideTimer();
-      }
-    } catch {
-      // screen API can fail if window is destroyed
-    }
-  }
-
-  // ── Show/hide overlay ──
-
-  private showOverlay(): void {
-    if (this.sidebarOverlayVisible) return;
-    this.sidebarOverlayVisible = true;
-
-    // Expand sidebar view to full width (overlay on top of content)
-    const { height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
-
-    this.notifyRenderer();
-  }
-
-  private hideOverlay(): void {
-    if (!this.sidebarOverlayVisible) return;
-    this.sidebarOverlayVisible = false;
-
-    // Shrink sidebar view back to thin edge strip
-    this.layoutHidden();
-    this.notifyRenderer();
-  }
-
-  // ── Layout helpers ──
-
-  private layoutExpanded(): void {
+  private applyExpandedLayout(): void {
     const { height } = this.mainWindow.getContentBounds();
     this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
     this.layoutCallback(this.baseWidth);
   }
 
-  private layoutHidden(): void {
+  private applyHiddenLayout(): void {
     const { height } = this.mainWindow.getContentBounds();
-    // Sidebar view = 1px thin strip at left edge for cursor detection
-    this.sidebarView.setBounds({ x: 0, y: 0, width: 1, height });
+    // Thin edge strip for mouseenter detection
+    this.sidebarView.setBounds({ x: 0, y: 0, width: EDGE_WIDTH, height });
     // Content fills full window
     this.layoutCallback(0);
+  }
+
+  private hideOverlay(): void {
+    if (!this.overlayVisible) return;
+    this.overlayVisible = false;
+    this.applyHiddenLayout();
+    this.notifyRenderer();
+    console.log('[Astra] 📐 Sidebar: overlay hidden');
   }
 
   // ── Timers ──
@@ -187,7 +145,7 @@ export class CompactModeManager {
     }
   }
 
-  // ── Notify renderer ──
+  // ── IPC ──
 
   private notifyRenderer(): void {
     this.sidebarView.webContents.send('compact:state', {

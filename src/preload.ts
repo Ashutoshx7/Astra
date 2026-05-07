@@ -57,6 +57,11 @@ contextBridge.exposeInMainWorld('astra', {
   lockPopup: () => ipcRenderer.send('compact:lock-popup'),
   unlockPopup: () => ipcRenderer.send('compact:unlock-popup'),
 
+  // Edge hover detection (sidebar auto-show)
+  edgeEnter: () => ipcRenderer.send('compact:edge-enter'),
+  edgeLeave: () => ipcRenderer.send('compact:edge-leave'),
+  edgeCancelHide: () => ipcRenderer.send('compact:edge-cancel-hide'),
+
   // Glance (Zen-inspired link preview)
   openGlance: (url: string, x: number, y: number) => ipcRenderer.send('glance:open', { url, x, y }),
   closeGlance: () => ipcRenderer.send('glance:close'),

@@ -170,6 +170,15 @@ const App: React.FC = () => {
     isOverlay ? 'sidebar-overlay' : '',
   ].filter(Boolean).join(' ');
 
+  // Edge hover handlers — send IPC to main process
+  const handleMouseEnter = useCallback(() => {
+    if (!compactState.expanded) window.astra.edgeEnter();
+  }, [compactState.expanded]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!compactState.expanded) window.astra.edgeLeave();
+  }, [compactState.expanded]);
+
   // --------------------------------------------------
   // Render
   // --------------------------------------------------
@@ -178,6 +187,8 @@ const App: React.FC = () => {
       className={sidebarClasses}
       ref={sidebarRef}
       onClick={() => setSpaceContextMenu(null)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* Drag handle for window moving */}
       <div className="sidebar-drag-handle" />
