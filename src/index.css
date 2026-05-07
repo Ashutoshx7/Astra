@@ -1517,12 +1517,12 @@ select,
 }
 
 /* ==========================================================
-   SIDEBAR AUTO-HIDE — Zen compact mode (exact spring curve)
+   SIDEBAR AUTO-HIDE (spring animation)
    ========================================================== */
 
-/* Zen's 100-point spring timing function — from sidebar.inc.css */
+/* Spring timing function (100 control points) */
 :root {
-  --zen-spring: linear(
+  --sidebar-spring: linear(
     0 0%, 0.002748 1%, 0.010544 2%, 0.022757 3%, 0.038804 4%,
     0.058151 5%, 0.080308 6%, 0.104828 7%, 0.131301 8%, 0.159358 9%,
     0.188662 10%, 0.21891 11%, 0.249828 12%, 0.281172 13%, 0.312724 14%,
@@ -1545,9 +1545,10 @@ select,
     1.004782 95%, 1.004489 96%, 1.004207 97%, 1.003935 98%, 1.003674 99%,
     1.003423 100%
   );
+  --sidebar-anim-duration: 0.22s;
 }
 
-/* Hidden: sidebar view is 12px edge strip */
+/* Hidden state: 12px transparent edge strip */
 .sidebar.sidebar-hidden {
   background: transparent !important;
   overflow: hidden;
@@ -1559,12 +1560,11 @@ select,
   border: none !important;
 }
 
-/* Hide all content inside edge strip */
 .sidebar.sidebar-hidden > *:not(.sidebar-drag-handle) {
   display: none !important;
 }
 
-/* Subtle glowing edge indicator on hover */
+/* Edge hover indicator pill */
 .sidebar.sidebar-hidden::after {
   content: '';
   position: absolute;
@@ -1572,42 +1572,61 @@ select,
   right: 2px;
   transform: translateY(-50%);
   width: 3px;
-  height: 40px;
+  height: 36px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   transition: all 0.2s ease;
 }
 
 .sidebar.sidebar-hidden:hover::after {
-  height: 60px;
-  background: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+  height: 56px;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.08);
 }
 
-/* Overlay: Zen-exact spring slide-in */
+/* Overlay: floating sidebar with depth */
 .sidebar.sidebar-overlay {
   position: absolute;
-  top: var(--zen-element-separation, 6px);
-  left: var(--zen-element-separation, 6px);
-  bottom: var(--zen-element-separation, 6px);
+  top: 6px;
+  left: 6px;
+  bottom: 6px;
   z-index: 200;
-  border-radius: var(--zen-border-radius, 12px);
-  animation: zenSlideIn 0.25s var(--zen-spring) forwards;
+  border-radius: 12px;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.35),
-    0 2px 8px rgba(0, 0, 0, 0.2),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px) saturate(120%);
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-@keyframes zenSlideIn {
+/* Slide in (spring) */
+.sidebar.sidebar-sliding-in {
+  animation: slideIn var(--sidebar-anim-duration) var(--sidebar-spring) forwards;
+}
+
+/* Slide out (smooth ease-in) */
+.sidebar.sidebar-sliding-out {
+  animation: slideOut var(--sidebar-anim-duration) ease-in forwards;
+}
+
+@keyframes slideIn {
   from {
-    transform: translateX(calc(-100% - 12px));
+    transform: translateX(-105%);
     opacity: 0;
   }
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-105%);
+    opacity: 0;
   }
 }
 

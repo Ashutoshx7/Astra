@@ -160,24 +160,29 @@ const App: React.FC = () => {
   const unpinTab = useCallback((id: string) => window.astra.unpinTab(id), []);
   const closeTab = useCallback((id: string) => window.astra.closeTab(id), []);
 
-  // Sidebar CSS classes — driven by compactState from main process
-  const isHidden = !compactState.expanded && !compactState.sidebarVisible;
-  const isOverlay = !compactState.expanded && compactState.sidebarVisible;
+  // Sidebar CSS classes driven by compactState from main process
+  const { expanded, sidebarVisible, animating } = compactState;
 
   const sidebarClasses = [
     'sidebar',
-    isHidden ? 'sidebar-hidden' : '',
-    isOverlay ? 'sidebar-overlay' : '',
+    // Fully hidden (edge strip only)
+    !expanded && !sidebarVisible && !animating ? 'sidebar-hidden' : '',
+    // Sliding out (still visible but animating away)
+    animating === 'hiding' ? 'sidebar-sliding-out' : '',
+    // Overlay visible or sliding in
+    !expanded && sidebarVisible && animating !== 'hiding' ? 'sidebar-overlay' : '',
+    // Sliding in
+    animating === 'showing' ? 'sidebar-sliding-in' : '',
   ].filter(Boolean).join(' ');
 
-  // Edge hover handlers — send IPC to main process
+  // Edge hover handlers
   const handleMouseEnter = useCallback(() => {
-    if (!compactState.expanded) window.astra.edgeEnter();
-  }, [compactState.expanded]);
+    if (!expanded) window.astra.edgeEnter();
+  }, [expanded]);
 
   const handleMouseLeave = useCallback(() => {
-    if (!compactState.expanded) window.astra.edgeLeave();
-  }, [compactState.expanded]);
+    if (!expanded) window.astra.edgeLeave();
+  }, [expanded]);
 
   // --------------------------------------------------
   // Render

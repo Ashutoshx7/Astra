@@ -63,6 +63,7 @@ export interface CompactState {
   expanded: boolean;
   sidebarVisible: boolean;
   sidebarWidth: number;
+  animating?: 'hiding' | 'showing' | null;
 }
 
 export interface GlanceState {

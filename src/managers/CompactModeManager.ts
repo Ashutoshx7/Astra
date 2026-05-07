@@ -1,25 +1,27 @@
 import { BaseWindow, WebContentsView } from 'electron';
 
 /**
- * CompactModeManager — Zen-style sidebar auto-hide.
+ * CompactModeManager - sidebar auto-hide with smooth transitions.
  *
- * Architecture:
- * - When hidden, sidebar view = thin edge strip (EDGE_WIDTH px)
- *   for mouseenter detection via IPC from renderer.
- * - Renderer detects mouseenter on that strip → sends IPC → main expands view.
- * - Renderer detects mouseleave → sends IPC → main shrinks view after delay.
- * - Works on Wayland (no screen.getCursorScreenPoint needed).
+ * Key insight: view bounds must change AFTER animations complete,
+ * not before. Otherwise the resize causes visual glitching.
+ *
+ * Flow:
+ * - Hide: notify renderer (slide-out anim) → wait → shrink view
+ * - Show: expand view → notify renderer (slide-in anim)
  */
 
 export type CompactMode = 'expanded' | 'hidden';
 
-const EDGE_WIDTH = 12;       // px - thin strip for hover detection
-const HIDE_DELAY_MS = 300;   // ms before hiding after mouse leaves
+const EDGE_WIDTH = 12;
+const HIDE_DELAY_MS = 300;
+const ANIM_DURATION_MS = 220;  // matches CSS animation duration
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
   private overlayVisible = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
+  private animTimer: ReturnType<typeof setTimeout> | null = null;
   private baseWidth = 300;
 
   constructor(
@@ -43,57 +45,86 @@ export class CompactModeManager {
   getBaseWidth(): number { return this.baseWidth; }
   setResizing(_r: boolean): void {}
 
-  /** Toggle expanded ↔ hidden */
+  /** Toggle expanded <-> hidden */
   toggleMode(): void {
+    this.clearAllTimers();
+
     if (this.mode === 'expanded') {
+      // HIDE: animate out first, then shrink view
       this.mode = 'hidden';
       this.overlayVisible = false;
-      this.clearHideTimer();
-      this.applyHiddenLayout();
+
+      // Tell renderer to start slide-out animation
+      this.sendState('hiding');
+
+      // After animation finishes, actually shrink the view
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
+        this.shrinkView();
+        this.sendState();
+      }, ANIM_DURATION_MS);
+
     } else {
+      // SHOW: expand view first, then animate in
       this.mode = 'expanded';
       this.overlayVisible = false;
-      this.clearHideTimer();
-      this.applyExpandedLayout();
+
+      // Expand view immediately
+      this.expandView();
+      this.layoutCallback(this.baseWidth);
+
+      // Tell renderer to animate in
+      this.sendState('showing');
+
+      // Clear the showing flag after animation
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
+        this.sendState();
+      }, ANIM_DURATION_MS);
     }
-    this.notifyRenderer();
-    console.log(`[Astra] 📐 Sidebar: ${this.mode}`);
+    console.log(`[Astra] sidebar: ${this.mode}`);
   }
 
   setMode(mode: any): void {
+    this.clearAllTimers();
     if (mode === 'expanded' || mode === 'full') {
       this.mode = 'expanded';
       this.overlayVisible = false;
-      this.applyExpandedLayout();
+      this.expandView();
+      this.layoutCallback(this.baseWidth);
     } else {
       this.mode = 'hidden';
       this.overlayVisible = false;
-      this.applyHiddenLayout();
+      this.shrinkView();
     }
-    this.notifyRenderer();
+    this.sendState();
   }
 
-  /** Called from renderer via IPC when mouse enters the edge strip */
+  /** Mouse entered the edge strip */
   onEdgeEnter(): void {
     if (this.mode === 'expanded' || this.overlayVisible) return;
     this.clearHideTimer();
     this.overlayVisible = true;
 
-    // Expand sidebar view to full width
-    const { height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
+    // Expand view, then tell renderer to animate in
+    this.expandView();
+    this.sendState('showing');
 
-    this.notifyRenderer();
-    console.log('[Astra] 📐 Sidebar: overlay shown (edge hover)');
+    this.animTimer = setTimeout(() => {
+      this.animTimer = null;
+      this.sendState();
+    }, ANIM_DURATION_MS);
+
+    console.log('[Astra] sidebar: overlay shown');
   }
 
-  /** Called from renderer via IPC when mouse leaves the sidebar */
+  /** Mouse left the sidebar area */
   onEdgeLeave(): void {
     if (this.mode === 'expanded' || !this.overlayVisible) return;
     this.startHideTimer();
   }
 
-  /** Cancel pending hide (mouse re-entered) */
+  /** Cancel pending hide */
   onEdgeCancelHide(): void {
     this.clearHideTimer();
   }
@@ -104,55 +135,57 @@ export class CompactModeManager {
   lockForPopup(): void {}
   unlockFromPopup(): void {}
 
-  // ── Layout ──
+  // -- View management --
 
-  private applyExpandedLayout(): void {
+  private expandView(): void {
     const { height } = this.mainWindow.getContentBounds();
     this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
-    this.layoutCallback(this.baseWidth);
   }
 
-  private applyHiddenLayout(): void {
+  private shrinkView(): void {
     const { height } = this.mainWindow.getContentBounds();
-    // Thin edge strip for mouseenter detection
     this.sidebarView.setBounds({ x: 0, y: 0, width: EDGE_WIDTH, height });
-    // Content fills full window
     this.layoutCallback(0);
   }
 
-  private hideOverlay(): void {
-    if (!this.overlayVisible) return;
-    this.overlayVisible = false;
-    this.applyHiddenLayout();
-    this.notifyRenderer();
-    console.log('[Astra] 📐 Sidebar: overlay hidden');
-  }
-
-  // ── Timers ──
+  // -- Timers --
 
   private startHideTimer(): void {
     this.clearHideTimer();
     this.hideTimer = setTimeout(() => {
       this.hideTimer = null;
-      this.hideOverlay();
+      if (!this.overlayVisible) return;
+      this.overlayVisible = false;
+
+      // Animate out first
+      this.sendState('hiding');
+
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
+        this.shrinkView();
+        this.sendState();
+      }, ANIM_DURATION_MS);
     }, HIDE_DELAY_MS);
   }
 
   private clearHideTimer(): void {
-    if (this.hideTimer) {
-      clearTimeout(this.hideTimer);
-      this.hideTimer = null;
-    }
+    if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; }
   }
 
-  // ── IPC ──
+  private clearAllTimers(): void {
+    this.clearHideTimer();
+    if (this.animTimer) { clearTimeout(this.animTimer); this.animTimer = null; }
+  }
 
-  private notifyRenderer(): void {
+  // -- IPC --
+
+  private sendState(animating?: 'hiding' | 'showing'): void {
     this.sidebarView.webContents.send('compact:state', {
       mode: this.mode,
       expanded: this.mode === 'expanded',
       sidebarVisible: this.isSidebarVisible(),
       sidebarWidth: this.getSidebarWidth(),
+      animating: animating || null,
     });
   }
 }
