@@ -687,10 +687,22 @@ select,
   opacity: 1;
 }
 
-/* Zen active: frosted white pill */
+/* Zen active: frosted pill with left accent */
 .tab.active {
   background: rgba(255, 255, 255, 0.09);
   opacity: 1;
+}
+
+.tab.active::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--astra-primary);
+  opacity: 0.8;
 }
 
 /* Zen: scale(0.99) + micro-rotate on press */
