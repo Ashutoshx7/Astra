@@ -267,27 +267,7 @@ select,
    SIDEBAR TOP BUTTONS — Always visible (toggle)
    ========================================================== */
 
-.sidebar-top-buttons {
-  display: flex;
-  align-items: center;
-  padding: 2px var(--astra-toolbox-padding);
-  flex-shrink: 0;
-}
 
-.sidebar-toggle-btn {
-  opacity: 0.5;
-  transition: opacity 0.15s, background 0.15s;
-}
-
-.sidebar-toggle-btn:hover {
-  opacity: 1;
-}
-
-/* In collapsed mode, center the toggle button */
-.sidebar-collapsed .sidebar-top-buttons {
-  justify-content: center;
-  padding: 4px 0;
-}
 
 /* ==========================================================
    URL BAR

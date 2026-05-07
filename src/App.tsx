@@ -195,20 +195,6 @@ const App: React.FC = () => {
       {/* Drag handle for window moving */}
       <div className="sidebar-drag-handle" />
 
-      {/* Zen-style top buttons — always visible */}
-      <div className="sidebar-top-buttons">
-        <button
-          className="nav-btn sidebar-toggle-btn"
-          title={compactState.expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          onClick={() => window.astra.toggleCompactMode()}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
-            <rect x="1.5" y="1.5" width="13" height="13" rx="2.5"/>
-            <line x1="6" y1="1.5" x2="6" y2="14.5"/>
-          </svg>
-        </button>
-      </div>
-
       {/* URL bar + toolbar */}
       <UrlBar
         activeTab={activeTab}
