@@ -660,98 +660,81 @@ select,
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
+/* Zen: --tab-block-margin: 2px, --tab-inline-padding: 8px */
 .tab {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 8.5px; /* Zen --tab-icon-end-margin */
+  padding: 0 8px; /* Zen --tab-inline-padding */
   min-height: var(--astra-tab-height);
   border-radius: var(--astra-tab-border-radius);
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, scale 0.2s ease;
   position: relative;
   border: none;
-  margin: 1px 2px;
-  opacity: 0.8;
+  margin: 2px; /* Zen --tab-block-margin */
 }
 
 .tab:hover {
-  background: rgba(255, 255, 255, 0.06);
-  opacity: 1;
+  /* Zen: --zen-toolbar-element-bg-hover = rgba(255,255,255,0.1) */
+  background: rgba(255, 255, 255, 0.10);
 }
 
-/* Zen active: frosted pill */
+/* Zen: --tab-selected-bgcolor dark = rgba(255,255,255,0.18) */
 .tab.active {
-  background: rgba(255, 255, 255, 0.09);
-  opacity: 1;
+  background: rgba(255, 255, 255, 0.18);
+  /* Zen: --tab-selected-shadow */
+  box-shadow: 0 1px 1px 0px rgba(0, 0, 0, 0.05);
 }
 
-/* Zen: scale(0.99) + micro-rotate on press */
-.tab:active:not(.active) {
-  scale: 0.99;
+/* Zen: scale(var(--zen-active-tab-scale)) + rotate for GPU */
+.tab:active:not(.active):not(.new-tab-inline) {
+  scale: 0.97;
   rotate: 0.02deg;
 }
 
+/* Zen tab-icon: 16px, border-radius 4px, fill-opacity 0.5 */
 .tab-favicon {
   width: 16px;
   min-width: 16px;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 13px;
-  /* Zen: fill-opacity 0.5 on inactive icons */
-  opacity: 0.7;
-  transition: opacity 0.15s;
   flex-shrink: 0;
-}
-
-.tab.active .tab-favicon,
-.tab:hover .tab-favicon {
-  opacity: 1;
 }
 
 .favicon-img {
   width: 16px;
   height: 16px;
   object-fit: contain;
-  border-radius: 3px;
+  border-radius: 4px; /* Zen: tab-icon-image border-radius */
 }
 
+/* Zen: .urlbar-input-box font-weight: 500 */
 .tab-title {
   font-size: 13px;
-  font-weight: 450;
+  font-weight: 500;
   color: var(--astra-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
-  opacity: 0.75;
-  transition: opacity 0.15s;
 }
 
-.tab:hover .tab-title,
-.tab.active .tab-title {
-  opacity: 1;
-}
-
-/* Zen: tab actions hidden until hover, no layout shift */
+/* Zen: close button display:none → display:flex on hover */
 .tab-actions {
-  display: flex;
+  display: none;
   gap: 2px;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.1s, visibility 0.1s;
   margin-left: auto;
   flex-shrink: 0;
 }
 
 .tab:hover .tab-actions,
 .tab.active:hover .tab-actions {
-  opacity: 1;
-  visibility: visible;
+  display: flex;
 }
 
-/* Zen: close button only — no pin button in tab row */
+/* Zen close button: --tab-inline-padding: 0, margin-inline-end: 0 */
 .tab-close {
   width: 20px;
   height: 20px;
@@ -768,13 +751,8 @@ select,
 }
 
 .tab-close:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--astra-text);
-}
-
-.tab-close:active {
-  background: rgba(239, 68, 68, 0.18);
-  color: #ef4444;
 }
 
 /* Hibernated tab */
@@ -783,24 +761,23 @@ select,
 }
 
 .tab.hibernated .tab-title::after {
-  content: ' 🌙';
-  font-size: 10px;
+  content: ' 💤';
+  font-size: 9px;
 }
 
-/* Zen new-tab button: transparent, faint on hover */
+/* Zen new-tab button — transparent, very faint */
 .new-tab-inline {
-  opacity: 0.3;
+  opacity: 0.4;
   border: none !important;
   transition: opacity 0.15s;
 }
 
 .new-tab-inline:hover {
-  opacity: 0.6;
-  background: color-mix(in srgb, currentColor 5%, transparent) !important;
+  opacity: 0.7;
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 
-.new-tab-inline .tab-favicon {
-  font-size: 15px;
+.new-tab-icon {
   color: var(--astra-text-muted);
 }
 

@@ -37,8 +37,14 @@ const TabList: React.FC<TabListProps> = ({
         onDrop={onDrop}
       />
     ))}
+    {/* Zen-style new tab button — transparent bg, + icon */}
     <div className="tab new-tab-inline" onClick={() => window.astra.newTab()}>
-      <span className="tab-favicon">+</span>
+      <span className="tab-favicon new-tab-icon">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <line x1="8" y1="3" x2="8" y2="13"/>
+          <line x1="3" y1="8" x2="13" y2="8"/>
+        </svg>
+      </span>
       <span className="tab-title">New Tab</span>
     </div>
   </div>
