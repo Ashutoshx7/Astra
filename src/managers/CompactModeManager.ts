@@ -3,21 +3,24 @@ import { BaseWindow, WebContentsView } from 'electron';
 /**
  * CompactModeManager - Zen-parity sidebar auto-hide.
  *
- * Zen's exact approach:
- *   Sidebar: position:fixed, z-index:10
- *   Hidden:  left: -width    (off-screen)
- *   Visible: left: 0         (on-screen, spring transition)
- *   Content: margin-left: 0  (always full width, sidebar floats over)
+ * KEY INSIGHT from Zen:
+ *   CSS transitions are GPU-accelerated. setBounds is not.
+ *   Never animate setBounds. Use CSS for visual smoothness,
+ *   then snap bounds once after animation completes.
  *
- * Our Electron adaptation:
- *   Toggle HIDE:  animate content x from sidebarWidth → 0
- *                 (content slides left, "covering" sidebar)
- *                 Sidebar stays at x=0, becomes transparent after.
- *   Toggle SHOW:  sidebar solid bg at x=0,
- *                 animate content x from 0 → sidebarWidth
- *                 (content slides right, "revealing" sidebar)
- *   Overlay:      sidebar on top at x=0, content stays at x=0
- *                 (sidebar floats over content, like Zen hover)
+ * Toggle HIDE:
+ *   1. Send 'hiding' → renderer plays CSS slideOut (GPU-accelerated)
+ *   2. After 250ms: snap bounds (sidebar 12px, content full width)
+ *
+ * Toggle SHOW:
+ *   1. Snap bounds first (sidebar full width, content offset)
+ *   2. Send 'showing' → renderer plays CSS slideIn (GPU-accelerated)
+ *   3. After 250ms: send final state
+ *
+ * Overlay:
+ *   1. Expand sidebar view (transparent bg, on top)
+ *   2. Send 'showing' → renderer plays CSS slideIn
+ *   3. On leave: send 'hiding' → CSS slideOut, then shrink
  */
 
 export type CompactMode = 'expanded' | 'hidden';
@@ -30,37 +33,11 @@ const ANIM_MS = 250;
 const COOLDOWN_MS = 400;
 const GRACE_MS = 500;
 
-// Zen's spring curve as lookup table
-const SPRING = [
-  0, 0.002748, 0.010544, 0.022757, 0.038804, 0.058151, 0.080308, 0.104828,
-  0.131301, 0.159358, 0.188662, 0.21891, 0.249828, 0.281172, 0.312724,
-  0.344288, 0.375693, 0.40679, 0.437447, 0.467549, 0.497, 0.525718,
-  0.553633, 0.580688, 0.60684, 0.632052, 0.656298, 0.679562, 0.701831,
-  0.723104, 0.743381, 0.76267, 0.780983, 0.798335, 0.814744, 0.830233,
-  0.844826, 0.858549, 0.87143, 0.883498, 0.894782, 0.905314, 0.915125,
-  0.924247, 0.93271, 0.940547, 0.947787, 0.954463, 0.960603, 0.966239,
-  0.971397, 0.976106, 0.980394, 0.984286, 0.987808, 0.990984, 0.993837,
-  0.99639, 0.998664, 1.000679, 1.002456, 1.004011, 1.005363, 1.006528,
-  1.007522, 1.008359, 1.009054, 1.009618, 1.010065, 1.010405, 1.010649,
-  1.010808, 1.01089, 1.010904, 1.010857, 1.010757, 1.010611, 1.010425,
-  1.010205, 1.009955, 1.009681, 1.009387, 1.009077, 1.008754, 1.008422,
-  1.008083, 1.00774, 1.007396, 1.007052, 1.00671, 1.006372, 1.00604,
-  1.005713, 1.005394, 1.005083, 1.004782, 1.004489, 1.004207, 1.003935,
-  1.003674, 1.003423,
-];
-
-function spring(t: number): number {
-  const i = t * 100;
-  const lo = Math.floor(i);
-  const hi = Math.min(lo + 1, 100);
-  return SPRING[lo] + (SPRING[hi] - SPRING[lo]) * (i - lo);
-}
-
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
   private overlayVisible = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
-  private animId: ReturnType<typeof setTimeout> | null = null;
+  private animTimer: ReturnType<typeof setTimeout> | null = null;
   private cooldownUntil = 0;
   private showTimestamp = 0;
   private baseWidth = 300;
@@ -84,50 +61,58 @@ export class CompactModeManager {
   // ==== Toggle ====
 
   toggleMode(): void {
-    this.stop();
+    this.clearAll();
 
     if (this.mode === 'expanded') {
-      // HIDE: content slides left (covering sidebar)
+      // HIDE: CSS slideOut first, then snap bounds
       this.mode = 'hidden';
       this.overlayVisible = false;
+
+      // Step 1: trigger CSS slideOut animation (GPU-accelerated)
       this.sendState('hiding');
 
-      this.animate(this.baseWidth, 0, ANIM_MS, (v) => {
-        this.layoutCallback(v);
-      }, () => {
+      // Step 2: after animation, snap bounds
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
         this.sidebarView.setBackgroundColor(TRANSPARENT);
         this.shrinkToEdge();
         this.sidebarToFront();
+        this.layoutCallback(0);
         this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
         console.log('[Astra] sidebar: hidden');
-      });
+      }, ANIM_MS);
 
     } else {
-      // SHOW: make sidebar solid, then content slides right (revealing it)
+      // SHOW: snap bounds first, then CSS slideIn
       this.mode = 'expanded';
       this.overlayVisible = false;
+
+      // Step 1: snap bounds (sidebar behind content, solid bg)
       this.sidebarView.setBackgroundColor(BG_COLOR);
-      this.setSidebarBounds(this.baseWidth);
+      this.setSidebarFull();
       this.sidebarToBack();
+      this.layoutCallback(this.baseWidth);
+
+      // Step 2: trigger CSS slideIn animation (GPU-accelerated)
       this.sendState('showing');
 
-      this.animate(0, this.baseWidth, ANIM_MS, (v) => {
-        this.layoutCallback(v);
-      }, () => {
+      // Step 3: after animation, send final state
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
         this.sendState();
         console.log('[Astra] sidebar: expanded');
-      });
+      }, ANIM_MS);
     }
   }
 
   setMode(m: any): void {
-    this.stop();
+    this.clearAll();
     if (m === 'expanded' || m === 'full') {
       this.mode = 'expanded';
       this.overlayVisible = false;
       this.sidebarView.setBackgroundColor(BG_COLOR);
-      this.setSidebarBounds(this.baseWidth);
+      this.setSidebarFull();
       this.sidebarToBack();
       this.layoutCallback(this.baseWidth);
     } else {
@@ -146,21 +131,20 @@ export class CompactModeManager {
   onEdgeEnter(): void {
     if (this.mode === 'expanded') return;
     if (this.overlayVisible) { this.clearHideTimer(); return; }
-    if (this.animId) return;
+    if (this.animTimer) return;
     if (Date.now() < this.cooldownUntil) return;
 
     this.clearHideTimer();
     this.overlayVisible = true;
     this.showTimestamp = Date.now();
 
-    // Expand sidebar view on top, content stays at x=0
-    this.setSidebarBounds(this.baseWidth);
+    // Expand sidebar view on top, CSS slideIn
+    this.setSidebarFull();
     this.sidebarToFront();
     this.sendState('showing');
 
-    // Brief delay then show
-    this.animId = setTimeout(() => {
-      this.animId = null;
+    this.animTimer = setTimeout(() => {
+      this.animTimer = null;
       this.sendState();
     }, ANIM_MS);
 
@@ -179,43 +163,11 @@ export class CompactModeManager {
   lockForPopup(): void {}
   unlockFromPopup(): void {}
 
-  // ==== Animation ====
-
-  private animate(
-    from: number, to: number, ms: number,
-    onFrame: (v: number) => void,
-    onDone: () => void,
-  ): void {
-    this.stopAnim();
-    const start = Date.now();
-    const tick = () => {
-      const t = Math.min((Date.now() - start) / ms, 1);
-      const v = Math.round(from + (to - from) * spring(t));
-      onFrame(v);
-      if (t < 1) {
-        this.animId = setTimeout(tick, 8); // ~120fps for smoother motion
-      } else {
-        this.animId = null;
-        onDone();
-      }
-    };
-    tick();
-  }
-
-  private stopAnim(): void {
-    if (this.animId) { clearTimeout(this.animId); this.animId = null; }
-  }
-
-  private stop(): void {
-    this.stopAnim();
-    this.clearHideTimer();
-  }
-
   // ==== View helpers ====
 
-  private setSidebarBounds(w: number): void {
+  private setSidebarFull(): void {
     const { height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: w + 8, height });
+    this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
   }
 
   private shrinkToEdge(): void {
@@ -246,16 +198,28 @@ export class CompactModeManager {
     this.hideTimer = setTimeout(() => {
       this.hideTimer = null;
       if (!this.overlayVisible) return;
-      this.overlayVisible = false;
-      this.shrinkToEdge();
-      this.cooldownUntil = Date.now() + COOLDOWN_MS;
-      this.sendState();
-      console.log('[Astra] sidebar: overlay hidden');
+
+      // CSS slideOut first
+      this.sendState('hiding');
+
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
+        this.overlayVisible = false;
+        this.shrinkToEdge();
+        this.cooldownUntil = Date.now() + COOLDOWN_MS;
+        this.sendState();
+        console.log('[Astra] sidebar: overlay hidden');
+      }, ANIM_MS);
     }, HIDE_DELAY_MS);
   }
 
   private clearHideTimer(): void {
     if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; }
+  }
+
+  private clearAll(): void {
+    this.clearHideTimer();
+    if (this.animTimer) { clearTimeout(this.animTimer); this.animTimer = null; }
   }
 
   // ==== IPC ====
