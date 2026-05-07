@@ -1549,69 +1549,55 @@ select,
 }
 
 /*
- * Hidden: sidebar view is full-width + transparent.
- * Content clicks pass through via Electron setIgnoreMouseEvents.
- * mousemove is forwarded, allowing edge detection in the renderer.
+ * Hidden: sidebar view is 12px edge strip, transparent.
+ * mouseenter on the 12px strip triggers overlay.
  */
 .sidebar.sidebar-hidden {
   background: transparent !important;
   border: none !important;
-  border-radius: 0 !important;
+  overflow: hidden;
 }
 
-/* Hide all sidebar content when hidden */
 .sidebar.sidebar-hidden > * {
   opacity: 0;
   visibility: hidden;
 }
 
 /*
- * Overlay: sidebar view is expanded + transparent + on top.
- * The sidebar div gets floating panel styling directly.
+ * Overlay: sidebar fills the view area (same layout as expanded).
+ * Shadow on the right edge shows it's overlaying content.
  */
 .sidebar.sidebar-overlay {
-  background: var(--astra-bg, #1b1b1b) !important;
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  bottom: 8px;
-  width: calc(var(--astra-sidebar-width, 280px) - 16px) !important;
-  border-radius: 12px !important;
-  z-index: 200;
-  box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.45),
-    0 2px 12px rgba(0, 0, 0, 0.2),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4),
+              1px 0 0 rgba(255, 255, 255, 0.04);
 }
 
-/* Show all content in overlay */
 .sidebar.sidebar-overlay > * {
   opacity: 1;
   visibility: visible;
 }
 
-/* Slide in (spring) */
+/* Slide in with spring curve */
 .sidebar.sidebar-sliding-in {
   animation: sidebarSlideIn var(--sidebar-anim-ms) var(--sidebar-spring) both;
 }
 
-/* Slide out (smooth) */
+/* Slide out cleanly */
 .sidebar.sidebar-sliding-out {
   animation: sidebarSlideOut var(--sidebar-anim-ms) ease-in both;
 }
 
-/* Keep sidebar content visible during animations */
+/* Content visible during animations */
 .sidebar.sidebar-sliding-in > *,
 .sidebar.sidebar-sliding-out > * {
   opacity: 1 !important;
   visibility: visible !important;
-  pointer-events: auto !important;
 }
 
 @keyframes sidebarSlideIn {
   from {
     transform: translateX(-100%);
-    opacity: 0;
+    opacity: 0.5;
   }
   to {
     transform: translateX(0);
