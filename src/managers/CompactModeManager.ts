@@ -1,22 +1,21 @@
 import { BaseWindow, WebContentsView } from 'electron';
 
 /**
- * CompactModeManager - Zen-parity sidebar auto-hide.
+ * CompactModeManager - Zen-exact sidebar auto-hide.
  *
- * Critical rule: content reacts INSTANTLY. No delay.
- * Sidebar CSS animation is purely visual (floats on top).
+ * CORE PRINCIPLE (from Zen):
+ *   In compact mode, content is ALWAYS full width.
+ *   Sidebar ALWAYS floats on top as an overlay.
+ *   Toggle just shows/hides the floating sidebar.
+ *   Content NEVER moves. Zero snapping.
  *
- * Toggle HIDE:
- *   1. Move sidebar to FRONT (floats over content)
- *   2. Content expands to full width IMMEDIATELY
- *   3. CSS slideOut animates sidebar off-screen (GPU-composited)
- *   4. After 250ms: shrink sidebar to 12px edge strip
+ * States:
+ *   'expanded' - normal mode, sidebar takes layout space
+ *   'hidden'   - compact mode, sidebar floats (overlay)
  *
- * Toggle SHOW:
- *   1. Expand sidebar view ON TOP, solid bg
- *   2. Content shifts right IMMEDIATELY
- *   3. CSS slideIn animates sidebar from left (GPU-composited)
- *   4. After 250ms: move sidebar to BACK (normal z-order)
+ * enterCompactMode(): expanded → hidden (one-time setup)
+ * exitCompactMode():  hidden → expanded (restore layout)
+ * toggleMode():       show/hide the floating sidebar
  */
 
 export type CompactMode = 'expanded' | 'hidden';
@@ -60,23 +59,33 @@ export class CompactModeManager {
     this.clearAll();
 
     if (this.mode === 'expanded') {
-      // HIDE
+      // Enter compact mode: content goes full width, sidebar becomes overlay
       this.mode = 'hidden';
       this.overlayVisible = false;
 
-      // Sidebar floats on top during animation
-      this.sidebarToFront();
-
-      // Content expands IMMEDIATELY (no delay)
+      // Content goes full width ONCE (this is entering compact mode)
       this.layoutCallback(0);
 
-      // CSS slideOut starts
+      // Sidebar slides out via CSS
+      this.sidebarToFront();
       this.sendState('hiding');
 
-      // After animation: finalize
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
         this.sidebarView.setBackgroundColor(TRANSPARENT);
+        this.shrinkToEdge();
+        this.cooldownUntil = Date.now() + COOLDOWN_MS;
+        this.sendState();
+        console.log('[Astra] sidebar: compact mode on');
+      }, ANIM_MS);
+
+    } else if (this.overlayVisible) {
+      // Already in compact mode, sidebar showing → hide it
+      this.overlayVisible = false;
+      this.sendState('hiding');
+
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
         this.shrinkToEdge();
         this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
@@ -84,27 +93,23 @@ export class CompactModeManager {
       }, ANIM_MS);
 
     } else {
-      // SHOW
+      // Compact mode, sidebar hidden → exit compact mode, restore layout
       this.mode = 'expanded';
       this.overlayVisible = false;
-
-      // Sidebar on top during animation (so slideIn is visible)
       this.sidebarView.setBackgroundColor(BG_COLOR);
       this.setSidebarFull();
       this.sidebarToFront();
 
-      // Content shifts right IMMEDIATELY
-      this.layoutCallback(this.baseWidth);
-
-      // CSS slideIn starts
+      // CSS slideIn first, content stays at x=0 during animation
       this.sendState('showing');
 
-      // After animation: sidebar goes behind content (normal z-order)
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
+        // NOW move content (after sidebar is fully visible)
         this.sidebarToBack();
+        this.layoutCallback(this.baseWidth);
         this.sendState();
-        console.log('[Astra] sidebar: expanded');
+        console.log('[Astra] sidebar: compact mode off');
       }, ANIM_MS);
     }
   }
@@ -141,7 +146,7 @@ export class CompactModeManager {
     this.overlayVisible = true;
     this.showTimestamp = Date.now();
 
-    // Sidebar on top, CSS slideIn
+    // Show sidebar as overlay (content stays at x=0)
     this.setSidebarFull();
     this.sidebarToFront();
     this.sendState('showing');
@@ -202,7 +207,6 @@ export class CompactModeManager {
       this.hideTimer = null;
       if (!this.overlayVisible) return;
 
-      // CSS slideOut
       this.sendState('hiding');
 
       this.animTimer = setTimeout(() => {
