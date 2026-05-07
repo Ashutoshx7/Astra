@@ -56,7 +56,7 @@ const App: React.FC = () => {
   // ── UI state ──────────────────────────────────────
   const [panelMode, setPanelMode] = useState<PanelMode>('tabs');
   const [settingsSubPanel, setSettingsSubPanel] = useState<SettingsSubPanel>('main');
-  const [compactState, setCompactState] = useState<CompactState>({ mode: 'full', sidebarVisible: true });
+  const [compactState, setCompactState] = useState<CompactState>({ mode: 'expanded', expanded: true, sidebarWidth: 300 });
   const [glanceState, setGlanceState] = useState<GlanceState>({ active: false, url: '' });
   const [urlCopiedToast, setUrlCopiedToast] = useState(false);
   const [spaceContextMenu, setSpaceContextMenu] = useState<SpaceContextMenuType | null>(null);
@@ -163,9 +163,7 @@ const App: React.FC = () => {
   // Sidebar CSS classes
   const sidebarClasses = [
     'sidebar',
-    compactState.mode !== 'full' ? 'compact-mode' : '',
-    compactState.mode !== 'full' && !compactState.sidebarVisible ? 'compact-hidden' : '',
-    compactState.mode !== 'full' && compactState.sidebarVisible ? 'compact-visible' : '',
+    !compactState.expanded ? 'sidebar-collapsed' : '',
   ].filter(Boolean).join(' ');
 
   // --------------------------------------------------
@@ -179,6 +177,20 @@ const App: React.FC = () => {
     >
       {/* Drag handle for window moving */}
       <div className="sidebar-drag-handle" />
+
+      {/* Zen-style top buttons — always visible */}
+      <div className="sidebar-top-buttons">
+        <button
+          className="nav-btn sidebar-toggle-btn"
+          title={compactState.expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+          onClick={() => window.astra.toggleCompactMode()}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+            <rect x="1.5" y="1.5" width="13" height="13" rx="2.5"/>
+            <line x1="6" y1="1.5" x2="6" y2="14.5"/>
+          </svg>
+        </button>
+      </div>
 
       {/* URL bar + toolbar */}
       <UrlBar
@@ -295,16 +307,7 @@ const App: React.FC = () => {
         <div className="url-copied-toast">✓ URL copied to clipboard</div>
       )}
 
-      {/* Compact mode indicator */}
-      {compactState.mode !== 'full' && (
-        <div
-          className="compact-indicator"
-          onClick={() => window.astra.toggleCompactMode()}
-          title="Click to change mode"
-        >
-          📐 {compactState.mode === 'compact' ? 'Compact' : 'Zen'}
-        </div>
-      )}
+
 
       {/* Glance overlay */}
       {glanceState.active && (

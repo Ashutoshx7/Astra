@@ -264,6 +264,32 @@ select,
 }
 
 /* ==========================================================
+   SIDEBAR TOP BUTTONS — Always visible (toggle)
+   ========================================================== */
+
+.sidebar-top-buttons {
+  display: flex;
+  align-items: center;
+  padding: 2px var(--astra-toolbox-padding);
+  flex-shrink: 0;
+}
+
+.sidebar-toggle-btn {
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.sidebar-toggle-btn:hover {
+  opacity: 1;
+}
+
+/* In collapsed mode, center the toggle button */
+.sidebar-collapsed .sidebar-top-buttons {
+  justify-content: center;
+  padding: 4px 0;
+}
+
+/* ==========================================================
    URL BAR
    ========================================================== */
 
@@ -1491,47 +1517,89 @@ select,
 }
 
 /* ==========================================================
-   COMPACT MODE
+   COLLAPSED SIDEBAR — Zen icon-only mode (60px)
    ========================================================== */
 
-.sidebar.compact-mode {
-  transition: transform var(--astra-duration-normal) var(--astra-spring),
-              opacity var(--astra-duration-fast) ease;
+.sidebar.sidebar-collapsed {
+  transition: width 0.2s ease, min-width 0.2s ease;
 }
 
-.sidebar.compact-hidden {
-  transform: translateX(-100%);
-  opacity: 0;
-  pointer-events: none;
+/* Hide text elements in collapsed mode */
+.sidebar-collapsed .tab-title,
+.sidebar-collapsed .new-tab-inline .tab-title,
+.sidebar-collapsed .workspace-indicator-name,
+.sidebar-collapsed .url-bar,
+.sidebar-collapsed .sidebar-resize-handle {
+  display: none !important;
 }
 
-.sidebar.compact-visible {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
+/* Tabs: center icon, hide close */
+.sidebar-collapsed .tab {
+  justify-content: center;
+  padding: 0;
+  margin: 2px auto;
+  width: 42px;
+  min-height: 42px;
 }
 
-.compact-indicator {
-  position: fixed;
-  bottom: 12px;
-  left: 12px;
-  display: flex;
+.sidebar-collapsed .tab-actions {
+  display: none !important;
+}
+
+/* Tab favicon centered */
+.sidebar-collapsed .tab-favicon {
+  margin: 0;
+}
+
+/* Pinned tabs: same as regular in collapsed */
+.sidebar-collapsed .tab.pinned {
+  width: 42px;
+  height: 42px;
+}
+
+/* Workspace indicator: just icon, centered */
+.sidebar-collapsed .workspace-indicator {
+  justify-content: center;
+  padding: 6px;
+  margin: 2px 6px;
+}
+
+/* Bottom bar: stack vertically, center */
+.sidebar-collapsed .sidebar-bottom-bar {
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: var(--astra-radius-pill);
-  background: rgba(var(--astra-bg-rgb), 0.8);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--astra-border);
-  font-size: 10px;
-  color: var(--astra-text-muted);
-  cursor: pointer;
-  transition: opacity 0.2s;
-  z-index: 100;
+  padding: 6px 0;
+  gap: 4px;
 }
 
-.compact-indicator:hover {
-  color: var(--astra-text);
+.sidebar-collapsed .bottom-bar-spaces {
+  flex-direction: column;
+}
+
+/* New tab button: just + icon, centered */
+.sidebar-collapsed .new-tab-inline {
+  justify-content: center;
+  padding: 0;
+  width: 42px;
+  margin: 0 auto;
+}
+
+/* Tab list: center items */
+.sidebar-collapsed .tab-list {
+  padding: 2px 0;
+  align-items: center;
+}
+
+/* Pinned tabs zone: center */
+.sidebar-collapsed .pinned-tabs {
+  justify-content: center;
+  padding: 2px 0;
+}
+
+/* Nav buttons: stack vertically when collapsed */
+.sidebar-collapsed .nav-buttons {
+  justify-content: center;
+  padding: 4px 0;
 }
 
 /* ==========================================================

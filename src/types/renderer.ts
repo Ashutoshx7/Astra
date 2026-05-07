@@ -60,7 +60,8 @@ export interface FindResult {
 
 export interface CompactState {
   mode: string;
-  sidebarVisible: boolean;
+  expanded: boolean;
+  sidebarWidth: number;
 }
 
 export interface GlanceState {
