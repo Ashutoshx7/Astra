@@ -173,8 +173,9 @@ const App: React.FC = () => {
 
   // Edge hover handlers
   const handleMouseEnter = useCallback(() => {
-    if (!expanded && !sidebarVisible) window.astra.edgeEnter();
-  }, [expanded, sidebarVisible]);
+    // When hidden: trigger overlay. When overlay visible: cancel pending hide.
+    if (!expanded) window.astra.edgeEnter();
+  }, [expanded]);
 
   const handleMouseLeave = useCallback(() => {
     if (!expanded && sidebarVisible) window.astra.edgeLeave();

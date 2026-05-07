@@ -19,14 +19,16 @@ const TRANSPARENT = '#00000000';
 const EDGE_WIDTH = 12;
 const HIDE_DELAY_MS = 300;
 const ANIM_DURATION_MS = 220;
-const COOLDOWN_MS = 400; // prevent re-trigger after hide
+const COOLDOWN_MS = 400;
+const GRACE_PERIOD_MS = 500; // ignore mouseleave right after show (view resize spurious event)
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
   private overlayVisible = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private animTimer: ReturnType<typeof setTimeout> | null = null;
-  private cooldownUntil = 0; // timestamp, ignore edge enter until this time
+  private cooldownUntil = 0;
+  private showTimestamp = 0; // when overlay was last shown
   private baseWidth = 300;
 
   constructor(
@@ -108,14 +110,20 @@ export class CompactModeManager {
 
   /** Mouse entered the edge strip */
   onEdgeEnter(): void {
-    // Guards: already expanded, already showing overlay, or in cooldown
     if (this.mode === 'expanded') return;
-    if (this.overlayVisible) return;
-    if (this.animTimer) return; // animation in progress
-    if (Date.now() < this.cooldownUntil) return; // cooldown active
+
+    // If overlay already visible, cancel any pending hide (mouse re-entered)
+    if (this.overlayVisible) {
+      this.clearHideTimer();
+      return;
+    }
+
+    if (this.animTimer) return;
+    if (Date.now() < this.cooldownUntil) return;
 
     this.clearAllTimers();
     this.overlayVisible = true;
+    this.showTimestamp = Date.now();
 
     this.expandView();
     this.sendState('showing');
@@ -131,6 +139,8 @@ export class CompactModeManager {
   /** Mouse left sidebar */
   onEdgeLeave(): void {
     if (this.mode === 'expanded' || !this.overlayVisible) return;
+    // Grace period: ignore mouseleave right after show (spurious from view resize)
+    if (Date.now() - this.showTimestamp < GRACE_PERIOD_MS) return;
     this.startHideTimer();
   }
 
