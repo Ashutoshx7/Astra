@@ -445,7 +445,7 @@ select,
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: rgba(30, 30, 40, 0.95);
+  background: rgba(22, 22, 65, 0.96);
   backdrop-filter: blur(12px);
   border: 1px solid var(--astra-border);
   border-radius: var(--astra-radius-md);
