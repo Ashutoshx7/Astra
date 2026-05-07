@@ -55,35 +55,36 @@ export class CompactModeManager {
   /** Toggle expanded <-> hidden */
   toggleMode(): void {
     this.clearAllTimers();
+    this.stopLayoutAnim();
 
     if (this.mode === 'expanded') {
+      // HIDE: animate sidebar out + content expanding simultaneously
       this.mode = 'hidden';
       this.overlayVisible = false;
       this.sendState('hiding');
 
-      this.animTimer = setTimeout(() => {
-        this.animTimer = null;
+      // Smoothly move content from sidebar width to 0
+      this.animateLayout(this.baseWidth, 0, ANIM_DURATION_MS, () => {
         this.sidebarView.setBackgroundColor(TRANSPARENT);
         this.shrinkToEdge();
         this.sidebarToFront();
-        this.layoutCallback(0);
         this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
-      }, ANIM_DURATION_MS);
+      });
 
     } else {
+      // SHOW: expand sidebar view first, then animate content + sidebar in
       this.mode = 'expanded';
       this.overlayVisible = false;
       this.sidebarView.setBackgroundColor(BG_COLOR);
       this.sidebarToBack();
       this.expandView();
-      this.layoutCallback(this.baseWidth);
       this.sendState('showing');
 
-      this.animTimer = setTimeout(() => {
-        this.animTimer = null;
+      // Smoothly move content from 0 to sidebar width
+      this.animateLayout(0, this.baseWidth, ANIM_DURATION_MS, () => {
         this.sendState();
-      }, ANIM_DURATION_MS);
+      });
     }
     console.log(`[Astra] sidebar: ${this.mode}`);
   }
@@ -166,6 +167,40 @@ export class CompactModeManager {
     this.sidebarView.setBounds({ x: 0, y: 0, width: EDGE_WIDTH, height });
   }
 
+  // -- Layout animation --
+
+  private layoutAnimId: ReturnType<typeof setTimeout> | null = null;
+
+  private animateLayout(from: number, to: number, duration: number, onDone: () => void): void {
+    this.stopLayoutAnim();
+    const start = Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const t = Math.min(elapsed / duration, 1);
+      // Ease-out cubic: fast start, gentle settle
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = Math.round(from + (to - from) * eased);
+      this.layoutCallback(current);
+
+      if (t < 1) {
+        this.layoutAnimId = setTimeout(tick, 16); // ~60fps
+      } else {
+        this.layoutAnimId = null;
+        onDone();
+      }
+    };
+
+    tick();
+  }
+
+  private stopLayoutAnim(): void {
+    if (this.layoutAnimId) {
+      clearTimeout(this.layoutAnimId);
+      this.layoutAnimId = null;
+    }
+  }
+
   // -- Z-order --
 
   private sidebarToFront(): void {
@@ -213,6 +248,7 @@ export class CompactModeManager {
   private clearAllTimers(): void {
     this.clearHideTimer();
     if (this.animTimer) { clearTimeout(this.animTimer); this.animTimer = null; }
+    this.stopLayoutAnim();
   }
 
   // -- IPC --
