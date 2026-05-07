@@ -3,13 +3,13 @@ import { BaseWindow, WebContentsView } from 'electron';
 /**
  * CompactModeManager - sidebar auto-hide with smooth overlay.
  *
- * Approach:
- * - Hidden: sidebar view = thin 12px strip (catches mouseenter).
- *   Background is transparent so it doesn't block content visually.
- * - Overlay: sidebar view expands to full width (still transparent bg).
- *   No flash because bg is transparent. CSS handles the visual slide-in.
- *   Sidebar brought to front so it overlays content.
- * - Expanded: sidebar view at normal width with solid bg, behind content.
+ * - Hidden: sidebar view = 12px transparent strip (catches mouseenter)
+ * - Overlay: view expands to full width (transparent bg, no flash),
+ *   sidebar brought to front, CSS slides content in
+ * - Expanded: normal layout, sidebar behind content with solid bg
+ *
+ * Key: cooldown after hide prevents re-trigger loop when cursor
+ * stays at the edge during hide transition.
  */
 
 export type CompactMode = 'expanded' | 'hidden';
@@ -19,12 +19,14 @@ const TRANSPARENT = '#00000000';
 const EDGE_WIDTH = 12;
 const HIDE_DELAY_MS = 300;
 const ANIM_DURATION_MS = 220;
+const COOLDOWN_MS = 400; // prevent re-trigger after hide
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
   private overlayVisible = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private animTimer: ReturnType<typeof setTimeout> | null = null;
+  private cooldownUntil = 0; // timestamp, ignore edge enter until this time
   private baseWidth = 300;
 
   constructor(
@@ -59,18 +61,17 @@ export class CompactModeManager {
 
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
-        // Make transparent, shrink to edge strip
         this.sidebarView.setBackgroundColor(TRANSPARENT);
         this.shrinkToEdge();
-        this.sidebarToFront(); // on top but tiny + transparent
+        this.sidebarToFront();
         this.layoutCallback(0);
+        this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
       }, ANIM_DURATION_MS);
 
     } else {
       this.mode = 'expanded';
       this.overlayVisible = false;
-      // Restore solid bg, normal layout
       this.sidebarView.setBackgroundColor(BG_COLOR);
       this.sidebarToBack();
       this.expandView();
@@ -107,14 +108,16 @@ export class CompactModeManager {
 
   /** Mouse entered the edge strip */
   onEdgeEnter(): void {
-    if (this.mode === 'expanded' || this.overlayVisible) return;
+    // Guards: already expanded, already showing overlay, or in cooldown
+    if (this.mode === 'expanded') return;
+    if (this.overlayVisible) return;
+    if (this.animTimer) return; // animation in progress
+    if (Date.now() < this.cooldownUntil) return; // cooldown active
+
     this.clearAllTimers();
     this.overlayVisible = true;
 
-    // Expand view (still transparent bg, no flash)
     this.expandView();
-    // Already on top from enterHiddenMode
-
     this.sendState('showing');
 
     this.animTimer = setTimeout(() => {
@@ -122,7 +125,7 @@ export class CompactModeManager {
       this.sendState();
     }, ANIM_DURATION_MS);
 
-    console.log('[Astra] sidebar: overlay');
+    console.log('[Astra] sidebar: overlay shown');
   }
 
   /** Mouse left sidebar */
@@ -185,7 +188,10 @@ export class CompactModeManager {
         this.animTimer = null;
         this.overlayVisible = false;
         this.shrinkToEdge();
+        // Set cooldown to prevent immediate re-trigger
+        this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
+        console.log('[Astra] sidebar: overlay hidden');
       }, ANIM_DURATION_MS);
     }, HIDE_DELAY_MS);
   }
