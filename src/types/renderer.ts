@@ -61,6 +61,7 @@ export interface FindResult {
 export interface CompactState {
   mode: string;
   expanded: boolean;
+  sidebarVisible: boolean;
   sidebarWidth: number;
 }
 

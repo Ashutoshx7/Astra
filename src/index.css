@@ -1517,89 +1517,27 @@ select,
 }
 
 /* ==========================================================
-   COLLAPSED SIDEBAR — Zen icon-only mode (60px)
+   SIDEBAR AUTO-HIDE — Zen compact mode
    ========================================================== */
 
-.sidebar.sidebar-collapsed {
-  transition: width 0.2s ease, min-width 0.2s ease;
+/* Hidden: slid off to the left */
+.sidebar.sidebar-hidden {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.15s ease;
 }
 
-/* Hide text elements in collapsed mode */
-.sidebar-collapsed .tab-title,
-.sidebar-collapsed .new-tab-inline .tab-title,
-.sidebar-collapsed .workspace-indicator-name,
-.sidebar-collapsed .url-bar,
-.sidebar-collapsed .sidebar-resize-handle {
-  display: none !important;
-}
-
-/* Tabs: center icon, hide close */
-.sidebar-collapsed .tab {
-  justify-content: center;
-  padding: 0;
-  margin: 2px auto;
-  width: 42px;
-  min-height: 42px;
-}
-
-.sidebar-collapsed .tab-actions {
-  display: none !important;
-}
-
-/* Tab favicon centered */
-.sidebar-collapsed .tab-favicon {
-  margin: 0;
-}
-
-/* Pinned tabs: same as regular in collapsed */
-.sidebar-collapsed .tab.pinned {
-  width: 42px;
-  height: 42px;
-}
-
-/* Workspace indicator: just icon, centered */
-.sidebar-collapsed .workspace-indicator {
-  justify-content: center;
-  padding: 6px;
-  margin: 2px 6px;
-}
-
-/* Bottom bar: stack vertically, center */
-.sidebar-collapsed .sidebar-bottom-bar {
-  flex-direction: column;
-  align-items: center;
-  padding: 6px 0;
-  gap: 4px;
-}
-
-.sidebar-collapsed .bottom-bar-spaces {
-  flex-direction: column;
-}
-
-/* New tab button: just + icon, centered */
-.sidebar-collapsed .new-tab-inline {
-  justify-content: center;
-  padding: 0;
-  width: 42px;
-  margin: 0 auto;
-}
-
-/* Tab list: center items */
-.sidebar-collapsed .tab-list {
-  padding: 2px 0;
-  align-items: center;
-}
-
-/* Pinned tabs zone: center */
-.sidebar-collapsed .pinned-tabs {
-  justify-content: center;
-  padding: 2px 0;
-}
-
-/* Nav buttons: stack vertically when collapsed */
-.sidebar-collapsed .nav-buttons {
-  justify-content: center;
-  padding: 4px 0;
+/* Overlay: slides back in, floating over content */
+.sidebar.sidebar-overlay {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.15s ease;
+  z-index: 100;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
 }
 
 /* ==========================================================

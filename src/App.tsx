@@ -56,7 +56,7 @@ const App: React.FC = () => {
   // ── UI state ──────────────────────────────────────
   const [panelMode, setPanelMode] = useState<PanelMode>('tabs');
   const [settingsSubPanel, setSettingsSubPanel] = useState<SettingsSubPanel>('main');
-  const [compactState, setCompactState] = useState<CompactState>({ mode: 'expanded', expanded: true, sidebarWidth: 300 });
+  const [compactState, setCompactState] = useState<CompactState>({ mode: 'expanded', expanded: true, sidebarVisible: true, sidebarWidth: 300 });
   const [glanceState, setGlanceState] = useState<GlanceState>({ active: false, url: '' });
   const [urlCopiedToast, setUrlCopiedToast] = useState(false);
   const [spaceContextMenu, setSpaceContextMenu] = useState<SpaceContextMenuType | null>(null);
@@ -163,7 +163,8 @@ const App: React.FC = () => {
   // Sidebar CSS classes
   const sidebarClasses = [
     'sidebar',
-    !compactState.expanded ? 'sidebar-collapsed' : '',
+    !compactState.expanded && !compactState.sidebarVisible ? 'sidebar-hidden' : '',
+    !compactState.expanded && compactState.sidebarVisible ? 'sidebar-overlay' : '',
   ].filter(Boolean).join(' ');
 
   // --------------------------------------------------

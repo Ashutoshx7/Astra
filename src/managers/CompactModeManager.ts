@@ -1,23 +1,26 @@
 import { BaseWindow, WebContentsView } from 'electron';
-import { IPC } from '../types';
 
 /**
- * CompactModeManager — Zen-style sidebar expand/collapse.
+ * CompactModeManager — Zen-style sidebar auto-hide.
  *
- * Zen's behavior:
- *   - Expanded: full width sidebar with labels, icons, tabs
- *   - Collapsed: icon-only, ~60px wide, no labels
- *   - Toggle via sidebar button or Ctrl+S
- *   - Smooth transition
+ * Toggle: sidebar fully hides (width 0)
+ * Hover left edge: sidebar slides in as overlay
+ * Mouse leaves: sidebar slides back out
+ * Toggle again: sidebar stays permanently visible
  */
 
-export type CompactMode = 'expanded' | 'collapsed';
+export type CompactMode = 'expanded' | 'hidden';
 
-const COLLAPSED_WIDTH = 60; // Zen: 48px + 6px*2 padding
+const EDGE_ZONE = 12;        // px from left edge to trigger reveal
+const HIDE_DELAY_MS = 250;   // ms before hiding after mouse leaves
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
-  private baseWidth = 300; // Full sidebar width
+  private sidebarVisible = true;
+  private hoverLocked = false;
+  private hideTimer: ReturnType<typeof setTimeout> | null = null;
+  private baseWidth = 300;
+  private lastMouseX = 0;
 
   constructor(
     private readonly mainWindow: BaseWindow,
@@ -25,68 +28,134 @@ export class CompactModeManager {
     private readonly layoutCallback: (sidebarWidth: number) => void,
   ) {}
 
-  // --------------------------------------------------
-  // Public API
-  // --------------------------------------------------
-
-  getMode(): CompactMode {
-    return this.mode;
-  }
-
-  isExpanded(): boolean {
-    return this.mode === 'expanded';
-  }
+  getMode(): CompactMode { return this.mode; }
 
   getSidebarWidth(): number {
-    return this.mode === 'expanded' ? this.baseWidth : COLLAPSED_WIDTH;
+    return this.sidebarVisible ? this.baseWidth : 0;
   }
 
-  /** Update base width when sidebar is resized */
+  isSidebarVisible(): boolean {
+    return this.sidebarVisible;
+  }
+
   setBaseWidth(width: number): void {
     this.baseWidth = width;
   }
 
-  /** Call before sidebar drag starts */
-  setResizing(resizing: boolean): void {
-    // no-op for now
-  }
+  setResizing(resizing: boolean): void {}
 
-  /** Toggle between expanded and collapsed (Zen Ctrl+S) */
+  /** Toggle: expanded ↔ hidden */
   toggleMode(): void {
-    this.setMode(this.mode === 'expanded' ? 'collapsed' : 'expanded');
+    if (this.mode === 'expanded') {
+      this.mode = 'hidden';
+      this.hideSidebar();
+    } else {
+      this.mode = 'expanded';
+      this.showSidebar();
+      this.hoverLocked = false;
+    }
+    this.notifyRenderer();
+    console.log(`[Astra] 📐 Sidebar: ${this.mode}`);
   }
 
-  setMode(mode: CompactMode): void {
-    this.mode = mode;
+  setMode(mode: any): void {
+    if (mode === 'expanded' || mode === 'full') {
+      this.mode = 'expanded';
+      this.showSidebar();
+    } else {
+      this.mode = 'hidden';
+      this.hideSidebar();
+    }
+    this.notifyRenderer();
+  }
+
+  /** Handle mouse from renderer — left-edge hover reveal */
+  handleMouseMove(x: number, _y: number): void {
+    this.lastMouseX = x;
+    if (this.mode === 'expanded') return;
+
+    // Mouse hit left edge → show sidebar overlay
+    if (x <= EDGE_ZONE && !this.sidebarVisible) {
+      this.clearHideTimer();
+      this.showSidebar();
+      this.hoverLocked = true;
+      return;
+    }
+
+    // Mouse left sidebar area → start hide timer
+    if (x > this.baseWidth && this.sidebarVisible && this.hoverLocked) {
+      this.startHideTimer();
+    }
+
+    // Mouse re-entered sidebar → cancel hide
+    if (x <= this.baseWidth && this.hoverLocked) {
+      this.clearHideTimer();
+    }
+  }
+
+  flashSidebar(): void {
+    if (this.mode === 'expanded' || this.sidebarVisible) return;
+    this.showSidebar();
+    setTimeout(() => {
+      if (this.lastMouseX > this.baseWidth) this.hideSidebar();
+    }, 800);
+  }
+
+  lockForPopup(): void {
+    this.clearHideTimer();
+    this.hoverLocked = true;
+    if (!this.sidebarVisible && this.mode !== 'expanded') this.showSidebar();
+  }
+
+  unlockFromPopup(): void {
+    this.hoverLocked = false;
+    if (this.mode !== 'expanded' && this.lastMouseX > this.baseWidth) {
+      this.startHideTimer();
+    }
+  }
+
+  // ── Private ──
+
+  private showSidebar(): void {
+    if (this.sidebarVisible) return;
+    this.sidebarVisible = true;
     this.updateLayout();
-    this.notifySidebar();
-    console.log(`[Astra] 📐 Sidebar: ${mode} (${this.getSidebarWidth()}px)`);
+    this.notifyRenderer();
   }
 
-  /** Keep backward compat */
-  isSidebarVisible(): boolean {
-    return true; // Always visible — just different widths
+  private hideSidebar(): void {
+    if (!this.sidebarVisible) return;
+    this.sidebarVisible = false;
+    this.hoverLocked = false;
+    this.updateLayout();
+    this.notifyRenderer();
   }
-
-  // Flash / popup lock — no-ops since sidebar never fully hides
-  flashSidebar(): void {}
-  lockForPopup(): void {}
-  unlockFromPopup(): void {}
-  handleMouseMove(_x: number, _y: number): void {}
-
-  // --------------------------------------------------
-  // Private
-  // --------------------------------------------------
 
   private updateLayout(): void {
     const width = this.getSidebarWidth();
     this.layoutCallback(width);
   }
 
-  private notifySidebar(): void {
+  private startHideTimer(): void {
+    this.clearHideTimer();
+    this.hideTimer = setTimeout(() => {
+      this.hideTimer = null;
+      this.hideSidebar();
+    }, HIDE_DELAY_MS);
+  }
+
+  private clearHideTimer(): void {
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+    }
+  }
+
+  private notifyRenderer(): void {
     this.sidebarView.webContents.send('compact:state', {
       mode: this.mode,
       expanded: this.mode === 'expanded',
+      sidebarVisible: this.sidebarVisible,
       sidebarWidth: this.getSidebarWidth(),
     });
   }
