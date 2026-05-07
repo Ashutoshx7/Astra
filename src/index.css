@@ -1178,6 +1178,7 @@ select,
 
 .space-icon.active {
   opacity: 1;
+  background: rgba(79, 82, 255, 0.15);
 }
 
 .bottom-bar-add {
