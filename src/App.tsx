@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
 // Types
 import type {
@@ -160,12 +160,37 @@ const App: React.FC = () => {
   const unpinTab = useCallback((id: string) => window.astra.unpinTab(id), []);
   const closeTab = useCallback((id: string) => window.astra.closeTab(id), []);
 
-  // Sidebar CSS classes
+  // ── Zen-style sidebar hover show/hide ──
+  const [sidebarHover, setSidebarHover] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isHidden = !compactState.expanded;
+  const showSidebar = isHidden && sidebarHover;
+
   const sidebarClasses = [
     'sidebar',
-    !compactState.expanded && !compactState.sidebarVisible ? 'sidebar-hidden' : '',
-    !compactState.expanded && compactState.sidebarVisible ? 'sidebar-overlay' : '',
+    isHidden && !showSidebar ? 'sidebar-hidden' : '',
+    showSidebar ? 'sidebar-overlay' : '',
   ].filter(Boolean).join(' ');
+
+  const handleSidebarEnter = useCallback(() => {
+    if (!isHidden) return;
+    if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+    setSidebarHover(true);
+  }, [isHidden]);
+
+  const handleSidebarLeave = useCallback(() => {
+    if (!isHidden) return;
+    hoverTimerRef.current = setTimeout(() => {
+      setSidebarHover(false);
+      hoverTimerRef.current = null;
+    }, 300); // Zen: keepHoverDuration
+  }, [isHidden]);
+
+  // Reset hover when mode changes
+  useEffect(() => {
+    if (compactState.expanded) setSidebarHover(false);
+  }, [compactState.expanded]);
 
   // --------------------------------------------------
   // Render
@@ -175,7 +200,8 @@ const App: React.FC = () => {
       className={sidebarClasses}
       ref={sidebarRef}
       onClick={() => setSpaceContextMenu(null)}
-      onMouseMove={(e) => window.astra.reportMouseMove(e.clientX, e.clientY)}
+      onMouseEnter={handleSidebarEnter}
+      onMouseLeave={handleSidebarLeave}
     >
       {/* Drag handle for window moving */}
       <div className="sidebar-drag-handle" />
