@@ -1,19 +1,29 @@
 import { BaseWindow, WebContentsView } from 'electron';
 
 /**
- * CompactModeManager - sidebar auto-hide with smooth transitions.
+ * CompactModeManager - sidebar auto-hide with smooth overlay.
  *
- * The sidebar overlays ON TOP of content (like Zen).
- * Content never moves during overlay - only during toggle.
+ * How it works:
+ * - Normal (expanded): sidebar view has solid bg, sits behind content,
+ *   content starts after sidebar. Standard layout.
  *
- * Z-order management:
- * - Normal: sidebar behind content (added first)
- * - Overlay: sidebar brought to front via re-adding to contentView
+ * - Hidden: sidebar view stays at full width but is TRANSPARENT.
+ *   Content fills the entire window (renders through transparent sidebar view).
+ *   The sidebar HTML is hidden via CSS (sidebar-hidden class).
+ *
+ * - Overlay (hover): sidebar view is still full-width + transparent.
+ *   Sidebar HTML slides in via CSS animation, with its own bg.
+ *   Content is visible through the transparent parts of the view.
+ *   Sidebar appears to float on top of the content.
+ *
+ * This avoids ALL view resizing during overlay, making it glitch-free.
+ * The only view resize happens on toggle (expanded <-> hidden).
  */
 
 export type CompactMode = 'expanded' | 'hidden';
 
-const EDGE_WIDTH = 12;
+const BG_COLOR = '#1b1b1b';
+const TRANSPARENT = '#00000000';
 const HIDE_DELAY_MS = 300;
 const ANIM_DURATION_MS = 220;
 
@@ -50,25 +60,35 @@ export class CompactModeManager {
     this.clearAllTimers();
 
     if (this.mode === 'expanded') {
-      // HIDE: animate out, then shrink view + move content
+      // HIDE: animate out, then reconfigure
       this.mode = 'hidden';
       this.overlayVisible = false;
       this.sendState('hiding');
 
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
-        this.shrinkView();
-        this.layoutCallback(0); // content fills window
+        // Make sidebar transparent so content shows through
+        this.sidebarView.setBackgroundColor(TRANSPARENT);
+        // Bring sidebar to front (it's transparent, won't block anything)
+        this.sidebarToFront();
+        // Content fills full window
+        this.layoutCallback(0);
         this.sendState();
       }, ANIM_DURATION_MS);
 
     } else {
-      // SHOW: expand view + move content, then animate in
+      // SHOW: reconfigure, then animate in
       this.mode = 'expanded';
       this.overlayVisible = false;
-      this.sidebarToBack(); // normal z-order
-      this.expandView();
-      this.layoutCallback(this.baseWidth); // content adjusts
+
+      // Restore solid background, put sidebar behind content
+      this.sidebarView.setBackgroundColor(BG_COLOR);
+      this.sidebarToBack();
+      // Set sidebar view to proper width
+      const { height } = this.mainWindow.getContentBounds();
+      this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
+      // Content adjusts
+      this.layoutCallback(this.baseWidth);
       this.sendState('showing');
 
       this.animTimer = setTimeout(() => {
@@ -84,29 +104,29 @@ export class CompactModeManager {
     if (mode === 'expanded' || mode === 'full') {
       this.mode = 'expanded';
       this.overlayVisible = false;
+      this.sidebarView.setBackgroundColor(BG_COLOR);
       this.sidebarToBack();
-      this.expandView();
+      const { height } = this.mainWindow.getContentBounds();
+      this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
       this.layoutCallback(this.baseWidth);
     } else {
       this.mode = 'hidden';
       this.overlayVisible = false;
-      this.shrinkView();
+      this.sidebarView.setBackgroundColor(TRANSPARENT);
+      this.sidebarToFront();
       this.layoutCallback(0);
     }
     this.sendState();
   }
 
-  /** Mouse entered edge strip - show overlay ON TOP of content */
+  /** Mouse entered the sidebar view area near the left edge */
   onEdgeEnter(): void {
     if (this.mode === 'expanded' || this.overlayVisible) return;
     this.clearAllTimers();
     this.overlayVisible = true;
 
-    // Bring sidebar to front so it overlays content
-    this.sidebarToFront();
-    this.expandView();
-    // Do NOT call layoutCallback - content stays at full width
-
+    // View is already transparent + full width + on top
+    // Just tell renderer to show sidebar with animation
     this.sendState('showing');
 
     this.animTimer = setTimeout(() => {
@@ -117,7 +137,7 @@ export class CompactModeManager {
     console.log('[Astra] sidebar: overlay');
   }
 
-  /** Mouse left sidebar - start hide timer */
+  /** Mouse left sidebar area */
   onEdgeLeave(): void {
     if (this.mode === 'expanded' || !this.overlayVisible) return;
     this.startHideTimer();
@@ -134,14 +154,14 @@ export class CompactModeManager {
   lockForPopup(): void {}
   unlockFromPopup(): void {}
 
-  // -- Z-order management --
+  // -- Z-order --
 
   private sidebarToFront(): void {
     try {
       const parent = this.mainWindow.contentView;
       parent.removeChildView(this.sidebarView);
-      parent.addChildView(this.sidebarView); // adds to end = top
-    } catch { /* view might already be removed */ }
+      parent.addChildView(this.sidebarView); // end = top
+    } catch {}
   }
 
   private sidebarToBack(): void {
@@ -149,19 +169,7 @@ export class CompactModeManager {
       const parent = this.mainWindow.contentView;
       parent.removeChildView(this.sidebarView);
       parent.addChildView(this.sidebarView, 0); // index 0 = bottom
-    } catch { /* view might already be removed */ }
-  }
-
-  // -- View bounds --
-
-  private expandView(): void {
-    const { height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
-  }
-
-  private shrinkView(): void {
-    const { height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: EDGE_WIDTH, height });
+    } catch {}
   }
 
   // -- Timers --
@@ -171,15 +179,13 @@ export class CompactModeManager {
     this.hideTimer = setTimeout(() => {
       this.hideTimer = null;
       if (!this.overlayVisible) return;
-      this.overlayVisible = false;
 
-      // Animate out first
+      // Animate out
       this.sendState('hiding');
 
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
-        this.shrinkView();
-        this.sidebarToBack();
+        this.overlayVisible = false;
         this.sendState();
       }, ANIM_DURATION_MS);
     }, HIDE_DELAY_MS);

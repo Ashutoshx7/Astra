@@ -1520,7 +1520,7 @@ select,
    SIDEBAR AUTO-HIDE (spring animation)
    ========================================================== */
 
-/* Spring timing function (100 control points) */
+/* Spring timing (100 points, slight overshoot then settle) */
 :root {
   --sidebar-spring: linear(
     0 0%, 0.002748 1%, 0.010544 2%, 0.022757 3%, 0.038804 4%,
@@ -1545,72 +1545,94 @@ select,
     1.004782 95%, 1.004489 96%, 1.004207 97%, 1.003935 98%, 1.003674 99%,
     1.003423 100%
   );
-  --sidebar-anim-duration: 0.22s;
+  --sidebar-anim-ms: 0.22s;
 }
 
-/* Hidden state: 12px transparent edge strip */
+/*
+ * Hidden: sidebar view is full-width + transparent.
+ * Content renders through it. Sidebar HTML is invisible,
+ * but a thin edge zone captures mouseenter for hover detection.
+ */
 .sidebar.sidebar-hidden {
   background: transparent !important;
-  overflow: hidden;
-  width: 12px !important;
-  min-width: 12px !important;
-  max-width: 12px !important;
-  cursor: default;
-  border-radius: 0 !important;
   border: none !important;
+  border-radius: 0 !important;
+  pointer-events: none;
 }
 
-.sidebar.sidebar-hidden > *:not(.sidebar-drag-handle) {
-  display: none !important;
-}
-
-/* Edge hover indicator pill */
-.sidebar.sidebar-hidden::after {
+/* Only the left edge strip captures mouse events */
+.sidebar.sidebar-hidden::before {
   content: '';
   position: absolute;
-  top: 50%;
-  right: 2px;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 36px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.06);
-  transition: all 0.2s ease;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 100%;
+  pointer-events: auto;
+  z-index: 10;
 }
 
-.sidebar.sidebar-hidden:hover::after {
-  height: 56px;
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.08);
+/* Hide all sidebar content when hidden */
+.sidebar.sidebar-hidden > * {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
-/* Overlay: floating sidebar with depth */
+/*
+ * Overlay: sidebar floats with its own background,
+ * positioned absolutely within the transparent view.
+ * Content is visible through the transparent parts.
+ */
 .sidebar.sidebar-overlay {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+/* The actual visible floating sidebar panel */
+.sidebar.sidebar-overlay > * {
+  position: relative;
+  z-index: 10;
+}
+
+.sidebar.sidebar-overlay::before {
+  content: '';
   position: absolute;
-  top: 6px;
-  left: 6px;
-  bottom: 6px;
-  z-index: 200;
+  top: 8px;
+  left: 8px;
+  bottom: 8px;
+  width: calc(var(--astra-sidebar-width, 280px) - 16px);
+  background: var(--astra-bg, #1b1b1b);
   border-radius: 12px;
+  z-index: 1;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    0 2px 8px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    0 8px 40px rgba(0, 0, 0, 0.45),
+    0 2px 12px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 /* Slide in (spring) */
 .sidebar.sidebar-sliding-in {
-  animation: slideIn var(--sidebar-anim-duration) var(--sidebar-spring) forwards;
+  animation: sidebarSlideIn var(--sidebar-anim-ms) var(--sidebar-spring) both;
 }
 
-/* Slide out (smooth ease-in) */
+/* Slide out (smooth) */
 .sidebar.sidebar-sliding-out {
-  animation: slideOut var(--sidebar-anim-duration) ease-in forwards;
+  animation: sidebarSlideOut var(--sidebar-anim-ms) ease-in both;
 }
 
-@keyframes slideIn {
+/* Keep sidebar content visible during animations */
+.sidebar.sidebar-sliding-in > *,
+.sidebar.sidebar-sliding-out > * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+@keyframes sidebarSlideIn {
   from {
-    transform: translateX(-105%);
+    transform: translateX(-100%);
     opacity: 0;
   }
   to {
@@ -1619,13 +1641,13 @@ select,
   }
 }
 
-@keyframes slideOut {
+@keyframes sidebarSlideOut {
   from {
     transform: translateX(0);
     opacity: 1;
   }
   to {
-    transform: translateX(-105%);
+    transform: translateX(-100%);
     opacity: 0;
   }
 }
