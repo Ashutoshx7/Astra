@@ -105,21 +105,10 @@ function createWindow(): void {
   tabManager = new TabManager(mainWindow, sidebarView, database, preloadPath);
   spaceManager = new SpaceManager(database, sidebarView, tabManager);
 
-  // CompactMode: controls sidebar auto-hide with layout callback
+  // CompactMode: controls sidebar auto-hide
+  // Callback: just repositions content webviews
   compactMode = new CompactModeManager(mainWindow, sidebarView, (sidebarWidth) => {
-    const { width, height } = mainWindow!.getContentBounds();
-    const g = 8; // CONTENT_INSET
-
-    if (sidebarWidth <= 0) {
-      // Hidden: content fills full window, sidebar view stays in place for hover detection
-      const baseW = compactMode.getBaseWidth();
-      sidebarView.setBounds({ x: 0, y: 0, width: baseW + g, height });
-      tabManager.layoutWithSidebarWidth(0);
-    } else {
-      // Visible: normal layout
-      sidebarView.setBounds({ x: 0, y: 0, width: sidebarWidth + g, height });
-      tabManager.layoutWithSidebarWidth(sidebarWidth);
-    }
+    tabManager.layoutWithSidebarWidth(sidebarWidth);
   });
 
   // Glance: link preview overlay
