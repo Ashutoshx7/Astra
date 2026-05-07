@@ -3,27 +3,25 @@ import { BaseWindow, WebContentsView } from 'electron';
 /**
  * CompactModeManager - sidebar auto-hide with smooth overlay.
  *
- * How it works:
- * - Normal (expanded): sidebar view has solid bg, sits behind content,
- *   content starts after sidebar. Standard layout.
+ * Problem: sidebar is a separate Electron WebContentsView.
+ * When hidden, we need content to receive clicks, but also
+ * need to detect mouse at the left edge for hover reveal.
  *
- * - Hidden: sidebar view stays at full width but is TRANSPARENT.
- *   Content fills the entire window (renders through transparent sidebar view).
- *   The sidebar HTML is hidden via CSS (sidebar-hidden class).
- *
- * - Overlay (hover): sidebar view is still full-width + transparent.
- *   Sidebar HTML slides in via CSS animation, with its own bg.
- *   Content is visible through the transparent parts of the view.
- *   Sidebar appears to float on top of the content.
- *
- * This avoids ALL view resizing during overlay, making it glitch-free.
- * The only view resize happens on toggle (expanded <-> hidden).
+ * Solution: setIgnoreMouseEvents API.
+ * - Hidden: sidebar view is full-width, transparent, click-through.
+ *   setIgnoreMouseEvents(true, { forward: true }) passes clicks to content
+ *   but still forwards mousemove to the sidebar renderer.
+ * - Renderer tracks mousemove. When cursor enters left edge zone,
+ *   sends IPC. Main process disables ignoreMouseEvents so sidebar
+ *   can receive full mouse interaction.
+ * - When mouse leaves sidebar, re-enables ignoreMouseEvents.
  */
 
 export type CompactMode = 'expanded' | 'hidden';
 
 const BG_COLOR = '#1b1b1b';
 const TRANSPARENT = '#00000000';
+const EDGE_ZONE_PX = 8;
 const HIDE_DELAY_MS = 300;
 const ANIM_DURATION_MS = 220;
 
@@ -60,35 +58,20 @@ export class CompactModeManager {
     this.clearAllTimers();
 
     if (this.mode === 'expanded') {
-      // HIDE: animate out, then reconfigure
       this.mode = 'hidden';
       this.overlayVisible = false;
       this.sendState('hiding');
 
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
-        // Make sidebar transparent so content shows through
-        this.sidebarView.setBackgroundColor(TRANSPARENT);
-        // Bring sidebar to front (it's transparent, won't block anything)
-        this.sidebarToFront();
-        // Content fills full window
-        this.layoutCallback(0);
+        this.enterHiddenMode();
         this.sendState();
       }, ANIM_DURATION_MS);
 
     } else {
-      // SHOW: reconfigure, then animate in
       this.mode = 'expanded';
       this.overlayVisible = false;
-
-      // Restore solid background, put sidebar behind content
-      this.sidebarView.setBackgroundColor(BG_COLOR);
-      this.sidebarToBack();
-      // Set sidebar view to proper width
-      const { height } = this.mainWindow.getContentBounds();
-      this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
-      // Content adjusts
-      this.layoutCallback(this.baseWidth);
+      this.exitHiddenMode();
       this.sendState('showing');
 
       this.animTimer = setTimeout(() => {
@@ -104,29 +87,25 @@ export class CompactModeManager {
     if (mode === 'expanded' || mode === 'full') {
       this.mode = 'expanded';
       this.overlayVisible = false;
-      this.sidebarView.setBackgroundColor(BG_COLOR);
-      this.sidebarToBack();
-      const { height } = this.mainWindow.getContentBounds();
-      this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
-      this.layoutCallback(this.baseWidth);
+      this.exitHiddenMode();
     } else {
       this.mode = 'hidden';
       this.overlayVisible = false;
-      this.sidebarView.setBackgroundColor(TRANSPARENT);
-      this.sidebarToFront();
-      this.layoutCallback(0);
+      this.enterHiddenMode();
     }
     this.sendState();
   }
 
-  /** Mouse entered the sidebar view area near the left edge */
+  /** Called from renderer when mouse enters edge zone (x < EDGE_ZONE_PX) */
   onEdgeEnter(): void {
     if (this.mode === 'expanded' || this.overlayVisible) return;
     this.clearAllTimers();
     this.overlayVisible = true;
 
-    // View is already transparent + full width + on top
-    // Just tell renderer to show sidebar with animation
+    // Stop ignoring mouse events so sidebar is fully interactive
+    this.sidebarView.webContents.setIgnoreMouseEvents(false);
+    this.sidebarToFront();
+
     this.sendState('showing');
 
     this.animTimer = setTimeout(() => {
@@ -137,13 +116,12 @@ export class CompactModeManager {
     console.log('[Astra] sidebar: overlay');
   }
 
-  /** Mouse left sidebar area */
+  /** Called from renderer when mouse leaves sidebar area */
   onEdgeLeave(): void {
     if (this.mode === 'expanded' || !this.overlayVisible) return;
     this.startHideTimer();
   }
 
-  /** Cancel pending hide */
   onEdgeCancelHide(): void {
     this.clearHideTimer();
   }
@@ -154,13 +132,40 @@ export class CompactModeManager {
   lockForPopup(): void {}
   unlockFromPopup(): void {}
 
+  // -- Mode transitions --
+
+  private enterHiddenMode(): void {
+    // Make sidebar transparent so content shows through
+    this.sidebarView.setBackgroundColor(TRANSPARENT);
+    // Put sidebar on top (transparent, won't block visually)
+    this.sidebarToFront();
+    // Make click-through but keep receiving mousemove
+    this.sidebarView.webContents.setIgnoreMouseEvents(true, { forward: true });
+    // Content fills window
+    this.layoutCallback(0);
+  }
+
+  private exitHiddenMode(): void {
+    // Restore solid background
+    this.sidebarView.setBackgroundColor(BG_COLOR);
+    // Stop ignoring mouse events
+    this.sidebarView.webContents.setIgnoreMouseEvents(false);
+    // Put sidebar behind content (normal layout)
+    this.sidebarToBack();
+    // Restore sidebar view size
+    const { height } = this.mainWindow.getContentBounds();
+    this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
+    // Content adjusts
+    this.layoutCallback(this.baseWidth);
+  }
+
   // -- Z-order --
 
   private sidebarToFront(): void {
     try {
       const parent = this.mainWindow.contentView;
       parent.removeChildView(this.sidebarView);
-      parent.addChildView(this.sidebarView); // end = top
+      parent.addChildView(this.sidebarView);
     } catch {}
   }
 
@@ -168,7 +173,7 @@ export class CompactModeManager {
     try {
       const parent = this.mainWindow.contentView;
       parent.removeChildView(this.sidebarView);
-      parent.addChildView(this.sidebarView, 0); // index 0 = bottom
+      parent.addChildView(this.sidebarView, 0);
     } catch {}
   }
 
@@ -180,12 +185,13 @@ export class CompactModeManager {
       this.hideTimer = null;
       if (!this.overlayVisible) return;
 
-      // Animate out
       this.sendState('hiding');
 
       this.animTimer = setTimeout(() => {
         this.animTimer = null;
         this.overlayVisible = false;
+        // Re-enable click-through
+        this.sidebarView.webContents.setIgnoreMouseEvents(true, { forward: true });
         this.sendState();
       }, ANIM_DURATION_MS);
     }, HIDE_DELAY_MS);
@@ -209,6 +215,7 @@ export class CompactModeManager {
       sidebarVisible: this.isSidebarVisible(),
       sidebarWidth: this.getSidebarWidth(),
       animating: animating || null,
+      edgeZone: EDGE_ZONE_PX,
     });
   }
 }

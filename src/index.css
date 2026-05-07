@@ -1550,32 +1550,18 @@ select,
 
 /*
  * Hidden: sidebar view is full-width + transparent.
- * Content renders through it. Sidebar HTML is invisible,
- * but a thin edge zone captures mouseenter for hover detection.
+ * Content clicks pass through via Electron setIgnoreMouseEvents.
+ * mousemove is forwarded, allowing edge detection in the renderer.
  */
 .sidebar.sidebar-hidden {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
-  pointer-events: none;
-}
-
-/* Only the left edge strip captures mouse events */
-.sidebar.sidebar-hidden::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 16px;
-  height: 100%;
-  pointer-events: auto;
-  z-index: 10;
 }
 
 /* Hide all sidebar content when hidden */
 .sidebar.sidebar-hidden > * {
   opacity: 0;
-  pointer-events: none;
   visibility: hidden;
 }
 

@@ -162,27 +162,36 @@ const App: React.FC = () => {
 
   // Sidebar CSS classes driven by compactState from main process
   const { expanded, sidebarVisible, animating } = compactState;
+  const edgeZone = (compactState as any).edgeZone || 8;
 
   const sidebarClasses = [
     'sidebar',
-    // Fully hidden (edge strip only)
     !expanded && !sidebarVisible && !animating ? 'sidebar-hidden' : '',
-    // Sliding out (still visible but animating away)
     animating === 'hiding' ? 'sidebar-sliding-out' : '',
-    // Overlay visible or sliding in
     !expanded && sidebarVisible && animating !== 'hiding' ? 'sidebar-overlay' : '',
-    // Sliding in
     animating === 'showing' ? 'sidebar-sliding-in' : '',
   ].filter(Boolean).join(' ');
 
-  // Edge hover handlers
-  const handleMouseEnter = useCallback(() => {
-    if (!expanded) window.astra.edgeEnter();
-  }, [expanded]);
+  // Edge detection via mousemove (works with setIgnoreMouseEvents forwarding)
+  const edgeTriggered = useRef(false);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (expanded || sidebarVisible) return;
+    if (e.clientX <= edgeZone && !edgeTriggered.current) {
+      edgeTriggered.current = true;
+      window.astra.edgeEnter();
+    }
+  }, [expanded, sidebarVisible, edgeZone]);
 
   const handleMouseLeave = useCallback(() => {
-    if (!expanded) window.astra.edgeLeave();
-  }, [expanded]);
+    if (!expanded && sidebarVisible) {
+      window.astra.edgeLeave();
+    }
+    edgeTriggered.current = false;
+  }, [expanded, sidebarVisible]);
+
+  // Reset edge trigger when overlay hides
+  if (!sidebarVisible) edgeTriggered.current = false;
 
   // --------------------------------------------------
   // Render
@@ -192,7 +201,7 @@ const App: React.FC = () => {
       className={sidebarClasses}
       ref={sidebarRef}
       onClick={() => setSpaceContextMenu(null)}
-      onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
       {/* Drag handle for window moving */}
