@@ -23,15 +23,22 @@ export type CompactMode = 'expanded' | 'hidden';
 
 const BG_COLOR = CONFIG.WINDOW.BG_COLOR;
 const TRANSPARENT = '#00000000';
-const EDGE_WIDTH = 12;
-const HIDE_DELAY_MS = 300;
-const ANIM_MS = 250;
-const COOLDOWN_MS = 400;
-const GRACE_MS = 500;
+const EDGE_WIDTH = 14;
+const HIDE_DELAY_MS = 240;
+const ANIM_MS = 220;
+const COOLDOWN_MS = 260;
+const GRACE_MS = 220;
+
+type SidebarAnimation = 'hiding' | 'showing';
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
   private overlayVisible = false;
+  private edgeHovered = false;
+  private popupLocked = false;
+  private resizing = false;
+  private animating: SidebarAnimation | null = null;
+  private showTimer: ReturnType<typeof setTimeout> | null = null;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private animTimer: ReturnType<typeof setTimeout> | null = null;
   private cooldownUntil = 0;
@@ -52,14 +59,20 @@ export class CompactModeManager {
   }
   setBaseWidth(w: number): void { this.baseWidth = w; }
   getBaseWidth(): number { return this.baseWidth; }
-  setResizing(_r: boolean): void {
-    void _r;
+  setResizing(r: boolean): void {
+    this.resizing = r;
+    if (r) {
+      this.clearHideTimer();
+    } else if (this.overlayVisible && !this.edgeHovered) {
+      this.queueHide();
+    }
   }
 
   // ==== Toggle ====
 
   toggleMode(): void {
     this.clearAll();
+    this.edgeHovered = false;
 
     if (this.mode === 'expanded') {
       // Enter compact mode: content goes full width, sidebar becomes overlay
@@ -72,28 +85,24 @@ export class CompactModeManager {
       // Sidebar slides out via CSS
       this.sidebarView.setBackgroundColor(TRANSPARENT);
       this.sidebarToFront();
-      this.sendState('hiding');
 
-      this.animTimer = setTimeout(() => {
-        this.animTimer = null;
+      this.startAnimation('hiding', () => {
         this.shrinkToEdge();
         this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
         console.log('[Astra] sidebar: compact mode on');
-      }, ANIM_MS);
+      });
 
     } else if (this.overlayVisible) {
       // Already in compact mode, sidebar showing → hide it
       this.overlayVisible = false;
-      this.sendState('hiding');
 
-      this.animTimer = setTimeout(() => {
-        this.animTimer = null;
+      this.startAnimation('hiding', () => {
         this.shrinkToEdge();
         this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
         console.log('[Astra] sidebar: hidden');
-      }, ANIM_MS);
+      });
 
     } else {
       // Compact mode, sidebar hidden → exit compact mode, restore layout
@@ -104,22 +113,20 @@ export class CompactModeManager {
       this.sidebarToFront();
 
       // CSS slideIn first, content stays at x=0 during animation
-      this.sendState('showing');
-
-      this.animTimer = setTimeout(() => {
-        this.animTimer = null;
+      this.startAnimation('showing', () => {
         // NOW move content (after sidebar is fully visible)
         this.sidebarToBack();
         this.layoutCallback(this.baseWidth);
         this.sidebarView.setBackgroundColor(BG_COLOR);
         this.sendState();
         console.log('[Astra] sidebar: compact mode off');
-      }, ANIM_MS);
+      });
     }
   }
 
   setMode(m: CompactMode | 'full' | string): void {
     this.clearAll();
+    this.edgeHovered = false;
     if (m === 'expanded' || m === 'full') {
       this.mode = 'expanded';
       this.overlayVisible = false;
@@ -142,45 +149,43 @@ export class CompactModeManager {
 
   onEdgeEnter(): void {
     if (this.mode === 'expanded') return;
-    if (this.overlayVisible) { this.clearHideTimer(); return; }
-    if (this.animTimer) return;
-    if (Date.now() < this.cooldownUntil) return;
-
+    this.edgeHovered = true;
     this.clearHideTimer();
-    this.overlayVisible = true;
-    this.showTimestamp = Date.now();
 
-    // Show sidebar as overlay (content stays at x=0)
-    this.setSidebarFull();
-    this.sidebarToFront();
-    this.sendState('showing');
+    if (this.overlayVisible && this.animating !== 'hiding') return;
 
-    this.animTimer = setTimeout(() => {
-      this.animTimer = null;
-      this.sendState();
-    }, ANIM_MS);
+    const cooldownRemaining = this.cooldownUntil - Date.now();
+    if (!this.overlayVisible && cooldownRemaining > 0) {
+      this.startShowTimer(cooldownRemaining);
+      return;
+    }
 
-    console.log('[Astra] sidebar: overlay shown');
+    this.showOverlay();
   }
 
   onEdgeLeave(): void {
-    if (this.mode === 'expanded' || !this.overlayVisible) return;
-    if (Date.now() - this.showTimestamp < GRACE_MS) return;
-    this.startHideTimer();
+    if (this.mode === 'expanded') return;
+    this.edgeHovered = false;
+    this.clearShowTimer();
+    if (!this.overlayVisible) return;
+    this.queueHide();
   }
 
   onEdgeCancelHide(): void { this.clearHideTimer(); }
-  handleMouseMove(): void {
-    return;
+  handleMouseMove(_x: number, _y: number): void {
+    void _x;
+    void _y;
   }
   flashSidebar(): void {
     return;
   }
   lockForPopup(): void {
-    return;
+    this.popupLocked = true;
+    this.clearHideTimer();
   }
   unlockFromPopup(): void {
-    return;
+    this.popupLocked = false;
+    if (this.overlayVisible && !this.edgeHovered) this.queueHide();
   }
 
   // ==== View helpers ====
@@ -217,32 +222,96 @@ export class CompactModeManager {
 
   // ==== Timers ====
 
-  private startHideTimer(): void {
+  private showOverlay(): void {
+    this.clearShowTimer();
+    this.clearHideTimer();
+    this.overlayVisible = true;
+    this.showTimestamp = Date.now();
+
+    // Show sidebar as overlay (content stays at x=0)
+    this.setSidebarFull();
+    this.sidebarToFront();
+    this.startAnimation('showing', () => this.sendState());
+
+    console.log('[Astra] sidebar: overlay shown');
+  }
+
+  private queueHide(): void {
+    if (!this.canAutoHide()) return;
+
+    const elapsed = Date.now() - this.showTimestamp;
+    const graceRemaining = Math.max(0, GRACE_MS - elapsed);
+    this.startHideTimer(graceRemaining + HIDE_DELAY_MS);
+  }
+
+  private canAutoHide(): boolean {
+    return (
+      this.mode === 'hidden' &&
+      this.overlayVisible &&
+      !this.edgeHovered &&
+      !this.popupLocked &&
+      !this.resizing
+    );
+  }
+
+  private startShowTimer(delay: number): void {
+    this.clearShowTimer();
+    this.showTimer = setTimeout(() => {
+      this.showTimer = null;
+      if (this.edgeHovered && this.mode === 'hidden' && !this.overlayVisible) {
+        this.showOverlay();
+      }
+    }, delay);
+  }
+
+  private startHideTimer(delay: number): void {
     this.clearHideTimer();
     this.hideTimer = setTimeout(() => {
       this.hideTimer = null;
-      if (!this.overlayVisible) return;
+      if (!this.canAutoHide()) return;
 
-      this.sendState('hiding');
-
-      this.animTimer = setTimeout(() => {
-        this.animTimer = null;
+      this.startAnimation('hiding', () => {
+        if (!this.canAutoHide()) {
+          this.sendState();
+          return;
+        }
         this.overlayVisible = false;
         this.shrinkToEdge();
         this.cooldownUntil = Date.now() + COOLDOWN_MS;
         this.sendState();
         console.log('[Astra] sidebar: overlay hidden');
-      }, ANIM_MS);
-    }, HIDE_DELAY_MS);
+      });
+    }, delay);
+  }
+
+  private startAnimation(animating: SidebarAnimation, onDone: () => void): void {
+    this.clearAnimationTimer();
+    this.animating = animating;
+    this.sendState(animating);
+    this.animTimer = setTimeout(() => {
+      this.animTimer = null;
+      this.animating = null;
+      onDone();
+    }, ANIM_MS);
+  }
+
+  private clearShowTimer(): void {
+    if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
   }
 
   private clearHideTimer(): void {
     if (this.hideTimer) { clearTimeout(this.hideTimer); this.hideTimer = null; }
   }
 
+  private clearAnimationTimer(): void {
+    if (this.animTimer) { clearTimeout(this.animTimer); this.animTimer = null; }
+    this.animating = null;
+  }
+
   private clearAll(): void {
     this.clearHideTimer();
-    if (this.animTimer) { clearTimeout(this.animTimer); this.animTimer = null; }
+    this.clearShowTimer();
+    this.clearAnimationTimer();
   }
 
   // ==== IPC ====

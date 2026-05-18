@@ -182,8 +182,8 @@ const App: React.FC = () => {
   }, [expanded]);
 
   const handleMouseLeave = useCallback(() => {
-    if (!expanded && sidebarVisible) window.astra.edgeLeave();
-  }, [expanded, sidebarVisible]);
+    if (!expanded) window.astra.edgeLeave();
+  }, [expanded]);
 
   // --------------------------------------------------
   // Render
