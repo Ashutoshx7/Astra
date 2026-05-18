@@ -1544,10 +1544,10 @@ select,
     1.004782 95%, 1.004489 96%, 1.004207 97%, 1.003935 98%, 1.003674 99%,
     1.003423 100%
   );
-  --sidebar-anim: 0.25s;
+  --sidebar-anim: 0.12s;
 }
 
-/* Hidden: 12px transparent edge strip */
+/* Hidden: 10px transparent edge strip */
 .sidebar.sidebar-hidden {
   background: transparent !important;
   border: none !important;

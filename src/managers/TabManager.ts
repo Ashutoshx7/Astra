@@ -48,6 +48,7 @@ export class TabManager {
   private static readonly ANIM_FPS = 60;
   private toolbarExpanded = false;
   private animTimer: ReturnType<typeof setInterval> | null = null;
+  private sidebarLayoutTimer: ReturnType<typeof setInterval> | null = null;
   private currentControlsH: number = TabManager.CONTENT_INSET; // starts at 8px (gap height)
 
   // Window controls strip — z-indexed ABOVE content, BELOW sidebar.
@@ -707,40 +708,99 @@ export class TabManager {
    *   then move content RIGHT → sidebar covers content's old position.
    */
   layoutWithSidebarWidth(sidebarWidth: number): void {
+    this.cancelSidebarLayoutAnimation();
+
     const oldWidth = this.sidebarWidth;
     // Allow 0 for auto-hide; only clamp to min when sidebar is visible
-    this.sidebarWidth = sidebarWidth <= 0
-      ? 0
-      : Math.max(CONFIG.SIDEBAR_MIN_WIDTH, Math.min(CONFIG.SIDEBAR_MAX_WIDTH, sidebarWidth));
+    this.sidebarWidth = this.clampSidebarWidth(sidebarWidth);
     const { width, height } = this.mainWindow.getContentBounds();
     const g = TabManager.CONTENT_INSET;
     const shrinking = this.sidebarWidth < oldWidth;
 
-    const activeTab = this.getActiveTab();
-
     if (shrinking) {
-      if (activeTab) {
-        activeTab.view.setBounds({
-          x: this.sidebarWidth + g,
-          y: g,
-          width: width - this.sidebarWidth - g * 2,
-          height: height - g * 2,
-        });
-        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
-      }
+      this.layoutContentForSidebarWidth(this.sidebarWidth, width, height);
       this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
     } else {
       this.sidebarView.setBounds({ x: 0, y: 0, width: this.sidebarWidth + g, height });
-      if (activeTab) {
-        activeTab.view.setBounds({
-          x: this.sidebarWidth + g,
-          y: g,
-          width: width - this.sidebarWidth - g * 2,
-          height: height - g * 2,
-        });
-        try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
-      }
+      this.layoutContentForSidebarWidth(this.sidebarWidth, width, height);
     }
+  }
+
+  /**
+   * Animate only the content/controls layout. CompactModeManager owns the
+   * sidebar BrowserView bounds during dock/undock so the two animations do not
+   * fight each other.
+   */
+  animateContentForSidebarWidth(sidebarWidth: number, durationMs: number): void {
+    this.cancelSidebarLayoutAnimation();
+
+    const targetWidth = this.clampSidebarWidth(sidebarWidth);
+    const startWidth = this.sidebarWidth;
+    const deltaWidth = targetWidth - startWidth;
+
+    if (durationMs <= 0 || deltaWidth === 0) {
+      this.applyContentSidebarWidth(targetWidth);
+      return;
+    }
+
+    const frameInterval = 1000 / TabManager.ANIM_FPS;
+    const totalFrames = Math.max(1, Math.round(durationMs / frameInterval));
+    const intervalMs = durationMs / totalFrames;
+    let frame = 0;
+
+    this.sidebarLayoutTimer = setInterval(() => {
+      frame++;
+      const t = Math.min(frame / totalFrames, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      this.applyContentSidebarWidth(startWidth + deltaWidth * eased);
+
+      if (frame >= totalFrames) {
+        this.cancelSidebarLayoutAnimation();
+        this.applyContentSidebarWidth(targetWidth);
+      }
+    }, intervalMs);
+  }
+
+  private clampSidebarWidth(width: number): number {
+    if (width <= 0) return 0;
+    return Math.max(CONFIG.SIDEBAR_MIN_WIDTH, Math.min(CONFIG.SIDEBAR_MAX_WIDTH, Math.round(width)));
+  }
+
+  private applyContentSidebarWidth(sidebarWidth: number): void {
+    const { width, height } = this.mainWindow.getContentBounds();
+    this.sidebarWidth = this.clampSidebarWidth(sidebarWidth);
+    this.layoutContentForSidebarWidth(this.sidebarWidth, width, height);
+  }
+
+  private layoutContentForSidebarWidth(sidebarWidth: number, width: number, height: number): void {
+    const g = TabManager.CONTENT_INSET;
+    const contentX = sidebarWidth + g;
+    const contentW = Math.max(0, width - sidebarWidth - g * 2);
+    const contentH = Math.max(0, height - g * 2);
+
+    this.controlsView.setBounds({
+      x: contentX,
+      y: 0,
+      width: contentW,
+      height: this.currentControlsH,
+    });
+
+    const activeTab = this.getActiveTab();
+    if (activeTab) {
+      activeTab.view.setBounds({
+        x: contentX,
+        y: g,
+        width: contentW,
+        height: contentH,
+      });
+      try { activeTab.view.setBorderRadius(TabManager.CONTENT_RADIUS); } catch { /* older Electron */ }
+    }
+  }
+
+  private cancelSidebarLayoutAnimation(): void {
+    if (!this.sidebarLayoutTimer) return;
+    clearInterval(this.sidebarLayoutTimer);
+    this.sidebarLayoutTimer = null;
   }
 
   /**
@@ -760,7 +820,6 @@ export class TabManager {
       this.animTimer = null;
     }
 
-    const { width } = this.mainWindow.getContentBounds();
     const g = TabManager.CONTENT_INSET;
     const T = TabManager.TOOLBAR_HEIGHT;
 
@@ -771,9 +830,6 @@ export class TabManager {
     const frameInterval = 1000 / TabManager.ANIM_FPS;
     const totalFrames = Math.ceil(TabManager.ANIM_DURATION / frameInterval);
     let frame = 0;
-    const contentW = width - this.sidebarWidth - g * 2;
-    const contentX = this.sidebarWidth + g;
-
     this.animTimer = setInterval(() => {
       frame++;
       const t = Math.min(frame / totalFrames, 1);
@@ -782,6 +838,9 @@ export class TabManager {
         : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
       const h = Math.round(startH + deltaH * eased);
+      const { width } = this.mainWindow.getContentBounds();
+      const contentX = this.sidebarWidth + g;
+      const contentW = Math.max(0, width - this.sidebarWidth - g * 2);
       this.currentControlsH = h;
       this.controlsView.setBounds({ x: contentX, y: 0, width: contentW, height: h });
 
@@ -790,6 +849,9 @@ export class TabManager {
         if (timer) clearInterval(timer);
         this.animTimer = null;
         this.currentControlsH = targetH;
+        const { width } = this.mainWindow.getContentBounds();
+        const contentX = this.sidebarWidth + g;
+        const contentW = Math.max(0, width - this.sidebarWidth - g * 2);
         this.controlsView.setBounds({ x: contentX, y: 0, width: contentW, height: targetH });
       }
     }, frameInterval);

@@ -181,9 +181,20 @@ const App: React.FC = () => {
     if (!expanded) window.astra.edgeEnter();
   }, [expanded]);
 
-  const handleMouseLeave = useCallback(() => {
-    if (!expanded) window.astra.edgeLeave();
+  const handleMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!expanded) window.astra.edgeLeave({ x: e.clientX, y: e.clientY });
   }, [expanded]);
+
+  const closeSpaceContextMenu = useCallback(() => {
+    if (!spaceContextMenu) return;
+    setSpaceContextMenu(null);
+    window.astra.unlockPopup();
+  }, [spaceContextMenu]);
+
+  const openSpaceContextMenu = useCallback((e: React.MouseEvent, spaceId: string) => {
+    window.astra.lockPopup();
+    setSpaceContextMenu({ x: e.clientX, y: e.clientY, spaceId });
+  }, []);
 
   // --------------------------------------------------
   // Render
@@ -195,7 +206,7 @@ const App: React.FC = () => {
         '--active-space-color': activeSpace?.color || '#4f52ff',
       } as React.CSSProperties}
       ref={sidebarRef}
-      onClick={() => setSpaceContextMenu(null)}
+      onClick={closeSpaceContextMenu}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -295,9 +306,7 @@ const App: React.FC = () => {
         panelMode={panelMode}
         onOpenSettings={() => { setSettingsSubPanel('main'); setMode('settings'); }}
         onSwitchSpace={window.astra.switchSpace}
-        onSpaceContextMenu={(e, spaceId) =>
-          setSpaceContextMenu({ x: e.clientX, y: e.clientY, spaceId })
-        }
+        onSpaceContextMenu={openSpaceContextMenu}
         onCreateSpace={() => window.astra.createSpace({ name: '', color: '', icon: '' })}
       />
 
@@ -308,7 +317,7 @@ const App: React.FC = () => {
           y={spaceContextMenu.y}
           spaceId={spaceContextMenu.spaceId}
           spaces={spaces}
-          onClose={() => setSpaceContextMenu(null)}
+          onClose={closeSpaceContextMenu}
         />
       )}
 

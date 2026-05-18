@@ -120,7 +120,7 @@ declare global {
       lockPopup: () => void;
       unlockPopup: () => void;
       edgeEnter: () => void;
-      edgeLeave: () => void;
+      edgeLeave: (position?: { x: number; y: number }) => void;
       edgeCancelHide: () => void;
       openGlance: (url: string, x: number, y: number) => void;
       closeGlance: () => void;

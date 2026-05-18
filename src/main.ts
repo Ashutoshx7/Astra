@@ -105,10 +105,12 @@ function createWindow(): void {
   tabManager = new TabManager(mainWindow, sidebarView, database, preloadPath);
   spaceManager = new SpaceManager(database, sidebarView, tabManager);
 
-  // CompactMode: controls sidebar auto-hide
-  // Callback: just repositions content webviews
+  // CompactMode: controls sidebar auto-hide.
+  // Hover keeps content full width; explicit toggle animates dock/undock layout.
   compactMode = new CompactModeManager(mainWindow, sidebarView, (sidebarWidth) => {
     tabManager.layoutWithSidebarWidth(sidebarWidth);
+  }, (sidebarWidth, durationMs) => {
+    tabManager.animateContentForSidebarWidth(sidebarWidth, durationMs);
   });
 
   // Glance: link preview overlay
@@ -265,7 +267,7 @@ function createWindow(): void {
 
   // Edge hover detection (Wayland-compatible)
   ipcMain.on('compact:edge-enter', () => compactMode.onEdgeEnter());
-  ipcMain.on('compact:edge-leave', () => compactMode.onEdgeLeave());
+  ipcMain.on('compact:edge-leave', (_e, data?: { x: number; y: number }) => compactMode.onEdgeLeave(data));
   ipcMain.on('compact:edge-cancel-hide', () => compactMode.onEdgeCancelHide());
 
   // --------------------------------------------------

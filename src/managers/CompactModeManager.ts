@@ -5,50 +5,53 @@ import { CONFIG } from '../types';
  * CompactModeManager - Zen-exact sidebar auto-hide.
  *
  * CORE PRINCIPLE (from Zen):
- *   In compact mode, content is ALWAYS full width.
- *   Sidebar ALWAYS floats on top as an overlay.
- *   Toggle just shows/hides the floating sidebar.
- *   Content NEVER moves. Zero snapping.
+ *   In compact hover mode, content stays full width.
+ *   Sidebar floats on top as an overlay.
+ *   The explicit toggle docks/undocks the sidebar, so content animates with it.
  *
  * States:
  *   'expanded' - normal mode, sidebar takes layout space
  *   'hidden'   - compact mode, sidebar floats (overlay)
  *
- * enterCompactMode(): expanded → hidden (one-time setup)
- * exitCompactMode():  hidden → expanded (restore layout)
- * toggleMode():       show/hide the floating sidebar
+ * enterCompactMode(): expanded → hidden (content becomes full width)
+ * setMode('expanded'): hidden → expanded (restore layout)
+ * toggleMode():       dock/undock the sidebar
  */
 
 export type CompactMode = 'expanded' | 'hidden';
 
 const BG_COLOR = CONFIG.WINDOW.BG_COLOR;
 const TRANSPARENT = '#00000000';
-const EDGE_WIDTH = 14;
-const HIDE_DELAY_MS = 240;
-const ANIM_MS = 220;
-const COOLDOWN_MS = 260;
-const GRACE_MS = 220;
+const EDGE_WIDTH = 10;
+const ANIM_MS = 120;
+const HOVER_KEEP_MS = 150;
+const WINDOW_EDGE_KEEP_MS = 1000;
+const HOVER_RECHECK_MS = 0;
+const TOGGLE_IGNORE_HOVER_MS = 180;
 
 type SidebarAnimation = 'hiding' | 'showing';
+type PointerPosition = { x: number; y: number };
 
 export class CompactModeManager {
   private mode: CompactMode = 'expanded';
   private overlayVisible = false;
+  private userShow = false;
   private edgeHovered = false;
   private popupLocked = false;
   private resizing = false;
   private animating: SidebarAnimation | null = null;
+  private ignoreHoverUntil = 0;
   private showTimer: ReturnType<typeof setTimeout> | null = null;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private animTimer: ReturnType<typeof setTimeout> | null = null;
-  private cooldownUntil = 0;
-  private showTimestamp = 0;
   private baseWidth = 300;
+  private lastBoundsKey = '';
 
   constructor(
     private readonly mainWindow: BaseWindow,
     private readonly sidebarView: WebContentsView,
     private readonly layoutCallback: (sidebarWidth: number) => void,
+    private readonly animateLayoutCallback?: (sidebarWidth: number, durationMs: number) => void,
   ) {}
 
   getMode(): CompactMode { return this.mode; }
@@ -71,62 +74,19 @@ export class CompactModeManager {
   // ==== Toggle ====
 
   toggleMode(): void {
-    this.clearAll();
-    this.edgeHovered = false;
-
     if (this.mode === 'expanded') {
-      // Enter compact mode: content goes full width, sidebar becomes overlay
-      this.mode = 'hidden';
-      this.overlayVisible = false;
-
-      // Content goes full width ONCE (this is entering compact mode)
-      this.layoutCallback(0);
-
-      // Sidebar slides out via CSS
-      this.sidebarView.setBackgroundColor(TRANSPARENT);
-      this.sidebarToFront();
-
-      this.startAnimation('hiding', () => {
-        this.shrinkToEdge();
-        this.cooldownUntil = Date.now() + COOLDOWN_MS;
-        this.sendState();
-        console.log('[Astra] sidebar: compact mode on');
-      });
-
-    } else if (this.overlayVisible) {
-      // Already in compact mode, sidebar showing → hide it
-      this.overlayVisible = false;
-
-      this.startAnimation('hiding', () => {
-        this.shrinkToEdge();
-        this.cooldownUntil = Date.now() + COOLDOWN_MS;
-        this.sendState();
-        console.log('[Astra] sidebar: hidden');
-      });
-
-    } else {
-      // Compact mode, sidebar hidden → exit compact mode, restore layout
-      this.mode = 'expanded';
-      this.overlayVisible = false;
-      this.sidebarView.setBackgroundColor(TRANSPARENT);
-      this.setSidebarFull();
-      this.sidebarToFront();
-
-      // CSS slideIn first, content stays at x=0 during animation
-      this.startAnimation('showing', () => {
-        // NOW move content (after sidebar is fully visible)
-        this.sidebarToBack();
-        this.layoutCallback(this.baseWidth);
-        this.sidebarView.setBackgroundColor(BG_COLOR);
-        this.sendState();
-        console.log('[Astra] sidebar: compact mode off');
-      });
+      this.enterCompactMode();
+      return;
     }
+
+    this.exitCompactMode();
   }
 
   setMode(m: CompactMode | 'full' | string): void {
     this.clearAll();
     this.edgeHovered = false;
+    this.userShow = false;
+    this.ignoreHoverUntil = 0;
     if (m === 'expanded' || m === 'full') {
       this.mode = 'expanded';
       this.overlayVisible = false;
@@ -152,23 +112,18 @@ export class CompactModeManager {
     this.edgeHovered = true;
     this.clearHideTimer();
 
+    if (Date.now() < this.ignoreHoverUntil) return;
     if (this.overlayVisible && this.animating !== 'hiding') return;
 
-    const cooldownRemaining = this.cooldownUntil - Date.now();
-    if (!this.overlayVisible && cooldownRemaining > 0) {
-      this.startShowTimer(cooldownRemaining);
-      return;
-    }
-
-    this.showOverlay();
+    this.startShowTimer(HOVER_RECHECK_MS);
   }
 
-  onEdgeLeave(): void {
+  onEdgeLeave(position?: PointerPosition): void {
     if (this.mode === 'expanded') return;
     this.edgeHovered = false;
     this.clearShowTimer();
     if (!this.overlayVisible) return;
-    this.queueHide();
+    this.queueHide(this.isLeavingThroughWindowEdge(position) ? WINDOW_EDGE_KEEP_MS : HOVER_KEEP_MS);
   }
 
   onEdgeCancelHide(): void { this.clearHideTimer(); }
@@ -191,13 +146,11 @@ export class CompactModeManager {
   // ==== View helpers ====
 
   private setSidebarFull(): void {
-    const { height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: this.baseWidth + 8, height });
+    this.setBounds(this.baseWidth + 8);
   }
 
   private shrinkToEdge(): void {
-    const { height } = this.mainWindow.getContentBounds();
-    this.sidebarView.setBounds({ x: 0, y: 0, width: EDGE_WIDTH, height });
+    this.setBounds(EDGE_WIDTH);
   }
 
   private sidebarToFront(): void {
@@ -222,32 +175,92 @@ export class CompactModeManager {
 
   // ==== Timers ====
 
-  private showOverlay(): void {
+  private enterCompactMode(): void {
+    this.clearAll();
+    this.edgeHovered = false;
+    this.userShow = false;
+    this.mode = 'hidden';
+    this.overlayVisible = false;
+    this.ignoreHoverUntil = Date.now() + TOGGLE_IGNORE_HOVER_MS;
+
+    this.sidebarView.setBackgroundColor(TRANSPARENT);
+    this.setSidebarFull();
+    this.sidebarToFront();
+
+    this.startAnimation('hiding', () => {
+      this.shrinkToEdge();
+      this.sendState();
+    });
+    this.animateLayout(0);
+  }
+
+  private exitCompactMode(): void {
+    const sidebarAlreadyVisible = this.overlayVisible || this.animating === 'showing';
+
+    this.clearAll();
+    this.edgeHovered = false;
+    this.userShow = false;
+    this.mode = 'expanded';
+    this.overlayVisible = false;
+    this.ignoreHoverUntil = 0;
+
+    this.sidebarView.setBackgroundColor(sidebarAlreadyVisible ? BG_COLOR : TRANSPARENT);
+    this.setSidebarFull();
+    this.sidebarToFront();
+
+    if (sidebarAlreadyVisible) {
+      this.startLayoutOnlyAnimation(() => {
+        this.sidebarToBack();
+        this.sendState();
+      });
+    } else {
+      this.startAnimation('showing', () => {
+        this.sidebarToBack();
+        this.sidebarView.setBackgroundColor(BG_COLOR);
+        this.sendState();
+      });
+    }
+    this.animateLayout(this.baseWidth);
+  }
+
+  private showOverlay(userShow = false): void {
+    if (this.mode === 'expanded') return;
+
     this.clearShowTimer();
     this.clearHideTimer();
     this.overlayVisible = true;
-    this.showTimestamp = Date.now();
+    this.userShow = userShow;
 
     // Show sidebar as overlay (content stays at x=0)
     this.setSidebarFull();
     this.sidebarToFront();
     this.startAnimation('showing', () => this.sendState());
-
-    console.log('[Astra] sidebar: overlay shown');
   }
 
-  private queueHide(): void {
-    if (!this.canAutoHide()) return;
+  private hideOverlay(fromToggle = false): void {
+    this.clearShowTimer();
+    this.clearHideTimer();
+    this.userShow = false;
+    this.edgeHovered = false;
+    this.overlayVisible = false;
+    if (fromToggle) this.ignoreHoverUntil = Date.now() + TOGGLE_IGNORE_HOVER_MS;
 
-    const elapsed = Date.now() - this.showTimestamp;
-    const graceRemaining = Math.max(0, GRACE_MS - elapsed);
-    this.startHideTimer(graceRemaining + HIDE_DELAY_MS);
+    this.startAnimation('hiding', () => {
+      this.shrinkToEdge();
+      this.sendState();
+    });
+  }
+
+  private queueHide(delay = HOVER_KEEP_MS): void {
+    if (!this.canAutoHide()) return;
+    this.startHideTimer(delay);
   }
 
   private canAutoHide(): boolean {
     return (
       this.mode === 'hidden' &&
       this.overlayVisible &&
+      !this.userShow &&
       !this.edgeHovered &&
       !this.popupLocked &&
       !this.resizing
@@ -258,8 +271,13 @@ export class CompactModeManager {
     this.clearShowTimer();
     this.showTimer = setTimeout(() => {
       this.showTimer = null;
-      if (this.edgeHovered && this.mode === 'hidden' && !this.overlayVisible) {
-        this.showOverlay();
+      if (
+        this.edgeHovered &&
+        this.mode === 'hidden' &&
+        !this.overlayVisible &&
+        Date.now() >= this.ignoreHoverUntil
+      ) {
+        this.showOverlay(false);
       }
     }, delay);
   }
@@ -270,17 +288,7 @@ export class CompactModeManager {
       this.hideTimer = null;
       if (!this.canAutoHide()) return;
 
-      this.startAnimation('hiding', () => {
-        if (!this.canAutoHide()) {
-          this.sendState();
-          return;
-        }
-        this.overlayVisible = false;
-        this.shrinkToEdge();
-        this.cooldownUntil = Date.now() + COOLDOWN_MS;
-        this.sendState();
-        console.log('[Astra] sidebar: overlay hidden');
-      });
+      this.hideOverlay(false);
     }, delay);
   }
 
@@ -291,6 +299,16 @@ export class CompactModeManager {
     this.animTimer = setTimeout(() => {
       this.animTimer = null;
       this.animating = null;
+      onDone();
+    }, ANIM_MS);
+  }
+
+  private startLayoutOnlyAnimation(onDone: () => void): void {
+    this.clearAnimationTimer();
+    this.animating = null;
+    this.sendState();
+    this.animTimer = setTimeout(() => {
+      this.animTimer = null;
       onDone();
     }, ANIM_MS);
   }
@@ -312,6 +330,28 @@ export class CompactModeManager {
     this.clearHideTimer();
     this.clearShowTimer();
     this.clearAnimationTimer();
+  }
+
+  private animateLayout(sidebarWidth: number): void {
+    if (this.animateLayoutCallback) {
+      this.animateLayoutCallback(sidebarWidth, ANIM_MS);
+      return;
+    }
+
+    this.layoutCallback(sidebarWidth);
+  }
+
+  private setBounds(width: number): void {
+    const { height } = this.mainWindow.getContentBounds();
+    const boundsKey = `0:0:${width}:${height}`;
+    if (boundsKey === this.lastBoundsKey) return;
+    this.lastBoundsKey = boundsKey;
+    this.sidebarView.setBounds({ x: 0, y: 0, width, height });
+  }
+
+  private isLeavingThroughWindowEdge(position?: PointerPosition): boolean {
+    if (!position) return false;
+    return position.x <= EDGE_WIDTH;
   }
 
   // ==== IPC ====

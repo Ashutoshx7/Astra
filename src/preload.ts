@@ -59,7 +59,7 @@ contextBridge.exposeInMainWorld('astra', {
 
   // Edge hover detection (sidebar auto-show)
   edgeEnter: () => ipcRenderer.send('compact:edge-enter'),
-  edgeLeave: () => ipcRenderer.send('compact:edge-leave'),
+  edgeLeave: (position?: { x: number; y: number }) => ipcRenderer.send('compact:edge-leave', position),
   edgeCancelHide: () => ipcRenderer.send('compact:edge-cancel-hide'),
 
   // Glance (Zen-inspired link preview)

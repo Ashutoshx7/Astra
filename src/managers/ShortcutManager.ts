@@ -187,7 +187,7 @@ export class ShortcutManager {
       return;
     }
 
-    // Ctrl+S — Toggle compact mode (Zen's sidebar toggle shortcut)
+    // Ctrl+S — Toggle the sidebar, matching Zen's compact-mode shortcut feel.
     if (ctrl && input.key === 's') {
       event.preventDefault();
       this.compactMode?.toggleMode();

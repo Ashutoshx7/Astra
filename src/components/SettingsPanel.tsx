@@ -68,7 +68,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <label>Keyboard Shortcuts</label>
           <div className="setting-info" style={{ fontSize: '11px', lineHeight: '1.8' }}>
             Ctrl+T — New tab<br/>
-            Ctrl+S — Toggle compact mode<br/>
+            Ctrl+S — Toggle sidebar<br/>
             Ctrl+Shift+S — Split view<br/>
             Ctrl+Shift+C — Copy URL<br/>
             Ctrl+Alt+←/→ — Switch workspace<br/>
